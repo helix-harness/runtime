@@ -21,6 +21,15 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  apps/playground:
+    dependencies:
+      '@helix/events':
+        specifier: workspace:*
+        version: link:../../packages/events
+      '@helix/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+
   packages/core: {}
 
   packages/events:

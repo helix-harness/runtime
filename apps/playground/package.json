@@ -1,0 +1,13 @@
+{
+  "name": "@helix/playground",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@helix/runtime": "workspace:*",
+    "@helix/events": "workspace:*"
+  }
+}
