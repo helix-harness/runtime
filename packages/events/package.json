@@ -1,5 +1,5 @@
 {
-  "name": "@helix/core",
+  "name": "@helix/events",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,5 +15,8 @@
     "build": "tsup src/index.ts --format esm --dts",
     "dev": "tsup src/index.ts --watch --format esm --dts",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "eventemitter3": "^5.0.1"
   }
 }
