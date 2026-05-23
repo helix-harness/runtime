@@ -8,7 +8,6 @@ export interface ToolCallRef {
   args: unknown;
 }
 
-
 export interface AgentMessage {
   role: "user" | "assistant" | "toolResult" | "system" | (string & {});
   content: string;
