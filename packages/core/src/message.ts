@@ -1,12 +1,6 @@
-export type MessageRole =
-    | 'system'
-    | 'user'
-    | 'assistant'
-    | 'tool';
-
 export interface AgentMessage {
-    id: string;
-    role: MessageRole;
-    content: string;
-    createdAt: number;
+  role: "user" | "assistant" | "toolResult" | "system" | string
+  content: string
+  timestamp: number
+  toolCallId?: string
 }

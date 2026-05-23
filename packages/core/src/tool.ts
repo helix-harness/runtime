@@ -1,10 +1,14 @@
-export interface ToolDefinition<
-    TInput = unknown,
-    TResult = unknown
-> {
-    name: string;
+export type ToolDef<TArgs = unknown> = {
+  name: string
+  description: string
+  parameters: Record<string, unknown>
+  execute: (args: TArgs) => Promise<ToolResult | { terminate: true }>
+  executionMode?: "parallel" | "sequential"
+}
 
-    description?: string;
-
-    execute(input: TInput): Promise<TResult>;
+export type ToolResult = {
+  toolCallId: string
+  content: string
+  isError: boolean
+  durationMs: number
 }

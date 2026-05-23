@@ -17,6 +17,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "eventemitter3": "^5.0.1"
+    "@helix/core": "workspace:*"
   }
 }

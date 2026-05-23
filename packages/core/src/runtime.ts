@@ -1,4 +1,8 @@
-export interface RuntimeContext {
-    sessionId: string;
-    abortSignal?: AbortSignal;
+import type { AgentMessage } from "./message"
+import type { ToolDef } from "./tool"
+
+export interface AgentContext {
+  systemPrompt: string
+  messages: AgentMessage[]
+  tools: ToolDef[]
 }

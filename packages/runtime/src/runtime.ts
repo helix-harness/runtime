@@ -1,25 +1,14 @@
-import { RuntimeContext } from '@helix/core';
-import { RuntimeEventBus } from '@helix/events';
+import type { AgentContext } from '@helix/core';
 
 export interface RuntimeOptions {
-    eventBus?: RuntimeEventBus<any>;
 }
 
 export class Runtime {
-    private eventBus?: RuntimeEventBus<any>;
-
     constructor(options: RuntimeOptions = {}) {
-        this.eventBus = options.eventBus;
     }
 
-    async run(input: string, ctx?: RuntimeContext): Promise<string> {
-        const sessionId = ctx?.sessionId ?? 'default';
-
-        this.eventBus?.emit('runtime:start', {
-            sessionId,
-            input,
-            timestamp: Date.now(),
-        });
+    async run(input: string, ctx?: AgentContext): Promise<string> {
+        const sessionId = ctx?.messages ? 'session' : 'default';
 
         try {
             // =========================
@@ -28,27 +17,8 @@ export class Runtime {
 
             const processed = this.process(input);
 
-            this.eventBus?.emit('runtime:processed', {
-                sessionId,
-                input,
-                output: processed,
-                timestamp: Date.now(),
-            });
-
-            this.eventBus?.emit('runtime:end', {
-                sessionId,
-                output: processed,
-                timestamp: Date.now(),
-            });
-
             return processed;
         } catch (err) {
-            this.eventBus?.emit('runtime:error', {
-                sessionId,
-                error: err,
-                timestamp: Date.now(),
-            });
-
             throw err;
         }
     }
