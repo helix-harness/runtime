@@ -4,10 +4,14 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
-    "dev": "tsx src/index.ts"
+    "dev": "node --env-file=../../.env -r tsx src/index.ts"
   },
   "dependencies": {
     "@helix/runtime": "workspace:*",
+    "@helix/core": "workspace:*",
     "@helix/models": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
   }
 }
