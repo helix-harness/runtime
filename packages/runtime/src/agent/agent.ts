@@ -7,7 +7,7 @@ import { agentLoop, agentLoopContinue } from "../loop";
 export interface AgentOptions extends Omit<AgentLoopConfig, "model" | "signal"> {
   model: ModelAdapter;
   systemPrompt?: string;
-  tools?: ToolDef[];
+  tools?: ToolDef<any>[];
 }
 
 /**

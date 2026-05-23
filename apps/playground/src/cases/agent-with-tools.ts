@@ -12,9 +12,8 @@ import { Agent } from "@helix/runtime";
 import { getModel } from "@helix/models";
 import type { ToolDef } from "@helix/core";
 
-// ─── 定义一个 Tool ────────────────────────────────────────────────────────────
 
-const getWeatherTool: ToolDef = {
+const getWeatherTool: ToolDef<{ city: string }> = {
   name: "get_weather",
   description: "获取指定城市的天气",
   parameters: {
@@ -30,8 +29,6 @@ const getWeatherTool: ToolDef = {
     return { city, weather: "晴天", temperature: 25 };
   },
 };
-
-// ─── Case ─────────────────────────────────────────────────────────────────────
 
 export async function agentWithTools() {
   console.log("\n========== Case: Agent with Tools ==========\n");
@@ -51,7 +48,7 @@ export async function agentWithTools() {
       apiKey: process.env.LLM_API_KEY,
       baseURL: process.env.LLM_BASE_URL,
     }),
-    systemPrompt: "你是一个有帮助的助手，可以调用工具来回答问题。",
+    systemPrompt: "你是一个智能助手，可以调用工具来回答问题。",
     tools: [getWeatherTool],
   });
 
