@@ -1,23 +1,23 @@
 import OpenAI from "openai";
-import type { ModelAdapter, AgentMessage, ToolDef } from "@helix/core";
-import type { ModelConfig } from "../registry";
+import type { ModelAdapter, AgentMessage, ToolDef, ModelChunk } from "@helix/core";
+import type { ModelConfig } from "../types";
 
-export interface OpenAICompatibleAdapterOptions {
-  apiKey: string;
-  model?: string;
-  baseURL?: string;
-}
+// ─── OpenAICompatibleAdapter ──────────────────────────────────────────────────
 
-interface ToolCallBuffer {
-  id: string;
-  name?: string;
-  arguments: string;
-}
-
+/**
+ * Adapter for any OpenAI-compatible API.
+ * Works with: OpenAI, Groq, Ollama, Together, Fireworks, local servers, etc.
+ *
+ * Handles:
+ * - Streaming text deltas
+ * - Streaming tool call deltas (buffered until complete)
+ * - AbortSignal passthrough
+ * - toolResult messages → OpenAI "tool" role conversion
+ */
 export class OpenAICompatibleAdapter implements ModelAdapter {
   private client: OpenAI;
 
-  constructor(private options: OpenAICompatibleAdapterOptions) {
+  constructor(private options: ModelConfig & { baseURL?: string }) {
     this.client = new OpenAI({
       apiKey: options.apiKey,
       baseURL: options.baseURL,
@@ -28,116 +28,145 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     messages: AgentMessage[],
     opts: { tools?: ToolDef[]; signal?: AbortSignal }
   ): AsyncIterable<ModelChunk> {
-    const controller = new AbortController();
-    if (opts.signal) {
-      opts.signal.addEventListener("abort", () => controller.abort());
-    }
+    // Buffer for accumulating streaming tool call arguments
+    const toolCallBuffers = new Map<
+      number,
+      { id: string; name: string; arguments: string }
+    >();
 
-    const toolCallBuffers = new Map<string, ToolCallBuffer>();
-
-    const response = await this.client.chat.completions.create({
-      model: this.options.model ?? "gpt-4o",
-      messages: this.convertMessages(messages),
-      stream: true,
-      tools: opts.tools ? this.convertTools(opts.tools) : undefined,
-    }, { signal: controller.signal as any });
+    const response = await this.client.chat.completions.create(
+      {
+        model: this.options.model ?? "gpt-4o",
+        max_tokens: this.options.maxTokens ?? 8192,
+        messages: convertMessages(messages),
+        stream: true,
+        tools: opts.tools?.length ? convertTools(opts.tools) : undefined,
+      },
+      { signal: opts.signal }
+    );
 
     for await (const chunk of response) {
       const delta = chunk.choices[0]?.delta;
+      const finishReason = chunk.choices[0]?.finish_reason;
 
+      // ── Text delta ────────────────────────────────────────────────────────
       if (delta?.content) {
         yield { type: "text_delta", value: delta.content };
       }
 
+      // ── Tool call deltas ──────────────────────────────────────────────────
       if (delta?.tool_calls?.length) {
         for (const tc of delta.tool_calls) {
-          const tcId = tc.id ?? "";
+          const index = tc.index ?? 0;
 
-          if (!toolCallBuffers.has(tcId)) {
-            toolCallBuffers.set(tcId, {
-              id: tcId,
-              arguments: "",
-            });
+          if (!toolCallBuffers.has(index)) {
+            toolCallBuffers.set(index, { id: "", name: "", arguments: "" });
           }
 
-          const buffer = toolCallBuffers.get(tcId)!;
+          const buf = toolCallBuffers.get(index)!;
 
-          if (tc.function?.name) {
-            buffer.name = tc.function.name;
-          }
+          if (tc.id) buf.id = tc.id;
+          if (tc.function?.name) buf.name = tc.function.name;
+          if (tc.function?.arguments) buf.arguments += tc.function.arguments;
 
-          if (tc.function?.arguments) {
-            buffer.arguments += tc.function.arguments;
-          }
-
+          // Emit delta for UIs that want to show streaming tool args
           yield {
             type: "tool_call_delta",
-            toolCallId: tcId,
-            name: buffer.name,
-            args: buffer.arguments,
+            toolCallId: buf.id,
+            name: buf.name || undefined,
+            argsDelta: tc.function?.arguments ?? "",
           };
         }
       }
 
-      if (chunk.choices[0]?.finish_reason === "tool_calls") {
-        for (const [toolCallId, buffer] of toolCallBuffers) {
+      // ── Finish: flush complete tool calls ─────────────────────────────────
+      if (finishReason === "tool_calls") {
+        for (const buf of toolCallBuffers.values()) {
+          let args: unknown = {};
           try {
-            const args = buffer.arguments ? JSON.parse(buffer.arguments) : {};
-            yield {
-              type: "tool_call",
-              toolCallId,
-              name: buffer.name ?? "",
-              args,
-            };
+            args = buf.arguments ? JSON.parse(buf.arguments) : {};
           } catch {
-            yield {
-              type: "tool_call",
-              toolCallId,
-              name: buffer.name ?? "",
-              args: {},
-            };
+            // Malformed JSON from LLM — pass empty args, let runtime handle it
           }
+          yield {
+            type: "tool_call",
+            toolCallId: buf.id,
+            name: buf.name,
+            args,
+          };
         }
         toolCallBuffers.clear();
         yield { type: "done" };
-      } else if (chunk.choices[0]?.finish_reason) {
+      } else if (finishReason) {
         yield { type: "done" };
       }
     }
   }
+}
 
-  private convertMessages(
-    messages: AgentMessage[]
-  ): OpenAI.Chat.ChatCompletionMessageParam[] {
-    return messages.map((m) => {
-      if (m.role === "toolResult") {
-        return {
+// ─── Message Conversion ───────────────────────────────────────────────────────
+
+function convertMessages(
+  messages: AgentMessage[]
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+  const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+
+  for (const m of messages) {
+    switch (m.role) {
+      case "system":
+        result.push({ role: "system", content: m.content });
+        break;
+
+      case "user":
+        result.push({ role: "user", content: m.content });
+        break;
+
+      case "assistant":
+        if (m.toolCalls?.length) {
+          // Assistant message with tool calls
+          result.push({
+            role: "assistant",
+            content: m.content || null,
+            tool_calls: m.toolCalls.map((tc) => ({
+              id: tc.toolCallId,
+              type: "function" as const,
+              function: {
+                name: tc.name,
+                arguments: JSON.stringify(tc.args),
+              },
+            })),
+          });
+        } else {
+          result.push({ role: "assistant", content: m.content });
+        }
+        break;
+
+      case "toolResult":
+        result.push({
           role: "tool" as const,
           tool_call_id: m.toolCallId ?? "",
           content: m.content,
-        };
-      }
-      return {
-        role: m.role as "system" | "user" | "assistant",
-        content: m.content,
-      };
-    });
+        });
+        break;
+
+      default:
+        // Skip unknown message types (e.g. UI-only messages)
+        break;
+    }
   }
 
-  private convertTools(tools: ToolDef[]): OpenAI.Chat.ChatCompletionTool[] {
-    return tools.map((t) => ({
-      type: "function" as const,
-      function: {
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters as Record<string, unknown>,
-      },
-    }));
-  }
+  return result;
 }
 
-type ModelChunk =
-  | { type: "text_delta"; value: string }
-  | { type: "tool_call_delta"; toolCallId: string; name?: string; args?: string }
-  | { type: "tool_call"; toolCallId: string; name: string; args: unknown }
-  | { type: "done" };
+// ─── Tool Conversion ──────────────────────────────────────────────────────────
+
+function convertTools(tools: ToolDef[]): OpenAI.Chat.ChatCompletionTool[] {
+  return tools.map((t) => ({
+    type: "function" as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters as Record<string, unknown>,
+    },
+  }));
+}

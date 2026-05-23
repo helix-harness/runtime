@@ -1,25 +1,17 @@
-export { registry, getModel } from "./types";
+// ─── Public API ───────────────────────────────────────────────────────────────
+// Zero side effects on import. Call registerOpenAI() / registerAnthropic()
+// explicitly before using getModel().
+
+export { getModel, getModelByTag } from "./getModel";
+export { registry, ModelRegistry } from "./registry";
+
+// Provider registration (call these in your app entry point)
+export { registerOpenAI, registerOpenAICompatible } from "./providers/openai";
+export { registerAnthropic } from "./providers/anthropic";
+
+// Adapters (for constructing adapters directly without the registry)
+export { OpenAICompatibleAdapter } from "./adapters/openai-compatible";
+export { AnthropicAdapter } from "./adapters/anthropic";
+
+// Types
 export type { ModelConfig, ModelProviderFactory, ModelRegistration } from "./types";
-
-export { OpenAICompatibleAdapter, type OpenAICompatibleAdapterOptions } from "./adapters/openai-compatible";
-
-// Provider factory for OpenAI-compatible APIs
-import { OpenAICompatibleAdapter } from "./adapters/openai-compatible";
-import { registry } from "./types";
-
-// Register default provider
-registry.registerProvider("openai-compatible", {
-  create(config) {
-    return new OpenAICompatibleAdapter({
-      apiKey: config.apiKey,
-      model: config.model,
-      baseURL: config.baseURL,
-    });
-  },
-});
-
-// Default model metadata
-registry.registerModel("openai-compatible", "gpt-4o", ["reasoning", "fast"]);
-registry.registerModel("openai-compatible", "gpt-4o-mini", ["fast-reasoning", "cheap-chat"]);
-registry.registerModel("openai-compatible", "o3", ["reasoning", "code-specialist"]);
-registry.registerModel("openai-compatible", "o4-mini", ["fast-reasoning", "code-specialist"]);
