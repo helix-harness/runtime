@@ -3,7 +3,8 @@ import type { ToolDef } from "./tool"
 
 export type ModelChunk =
   | { type: "text_delta"; value: string }
-  | { type: "tool_call"; id: string; name: string; args: unknown }
+  | { type: "tool_call_delta"; toolCallId: string; name?: string; args?: string }
+  | { type: "tool_call"; toolCallId: string; name: string; args: unknown }
   | { type: "done" }
 
 export interface ModelAdapter {

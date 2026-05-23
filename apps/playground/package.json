@@ -8,6 +8,6 @@
   },
   "dependencies": {
     "@helix/runtime": "workspace:*",
-    "@helix/events": "workspace:*"
+    "@helix/models": "workspace:*"
   }
 }
