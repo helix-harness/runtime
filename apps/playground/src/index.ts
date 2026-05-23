@@ -7,8 +7,7 @@
  */
 
 import { modelBasic } from "./cases/model-basic";
-import { toolCall } from "./cases/tool-call";
-import { chunkTypes } from "./cases/chunk-types";
+import { agentWithTools } from "./cases/agent-with-tools";
 
 type Case = {
   name: string;
@@ -18,8 +17,7 @@ type Case = {
 
 const cases: Case[] = [
   { name: "model-basic", description: "Model Layer 基础配置", run: modelBasic },
-  { name: "tool-call", description: "Tool Calling 演示", run: toolCall },
-  { name: "chunk-types", description: "ModelChunk 类型观察", run: chunkTypes },
+  { name: "agent-with-tools", description: "Agent Class + Tool Calling", run: agentWithTools },
 ];
 
 async function main() {
