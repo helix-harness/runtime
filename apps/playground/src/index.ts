@@ -8,7 +8,6 @@
 
 import { modelBasic } from "./cases/model-basic";
 import { agentWithTools } from "./cases/agent-with-tools";
-import { basic } from "./cases/basic";
 import { eventSequence } from "./cases/event-sequence";
 import { multiTurn } from "./cases/multi-turn";
 import { convert } from "./cases/convert";
@@ -23,7 +22,6 @@ type Case = {
 const cases: Case[] = [
   { name: "model-basic", description: "Model Layer 基础配置", run: modelBasic },
   { name: "agent-with-tools", description: "Agent Class + Tool Calling", run: agentWithTools },
-  { name: "basic", description: "v0.2.1: Agent 流式输出 + 事件序列", run: basic },
   { name: "event-sequence", description: "v0.2.1: 断言事件顺序", run: eventSequence },
   { name: "multi-turn", description: "v0.2.1: 多轮对话消息累积", run: multiTurn },
   { name: "convert", description: "v0.2.2: convertToLlm 验证", run: convert },

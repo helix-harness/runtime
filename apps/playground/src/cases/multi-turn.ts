@@ -43,8 +43,8 @@ export async function multiTurn() {
 
   // 验证累积
   const checks = [
-    { pass: msgCounts[1] > msgCounts[0], msg: `第2轮消息数(${msgCounts[1]}) > 第1轮(${msgCounts[0]})` },
-    { pass: msgCounts[0] >= 2, msg: `第1轮至少有 2 条消息 (user + assistant)` },
+    { pass: msgCounts[1]! > msgCounts[0]!, msg: `第2轮消息数(${msgCounts[1]}) > 第1轮(${msgCounts[0]})` },
+    { pass: msgCounts[0]! >= 2, msg: `第1轮至少有 2 条消息 (user + assistant)` },
   ];
 
   console.log("\n断言结果:");
