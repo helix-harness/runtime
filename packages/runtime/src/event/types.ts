@@ -1,7 +1,5 @@
 import type { AgentMessage, ToolResult } from "@helix/core";
 
-// ─── AgentEvent ───────────────────────────────────────────────────────────────
-
 /**
  * All events emitted by agentLoop during a single agent.prompt() call.
  *
@@ -11,9 +9,9 @@ import type { AgentMessage, ToolResult } from "@helix/core";
  * Sequence per turn (with tool calls):
  *   agent_start → turn_start
  *     → message_start(assistant) → message_update* → message_end
- *     → tool_execution_start → tool_execution_end   (repeated per tool)
+ *     → tool_execution_start → tool_execution_end   (one per tool, parallel or sequential)
  *     → turn_end
- *   → turn_start (LLM continues after tool results)
+ *   → turn_start  (LLM continues after tool results)
  *     → message_start → message_update* → message_end
  *     → turn_end
  *   → agent_end

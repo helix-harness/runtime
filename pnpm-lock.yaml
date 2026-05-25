@@ -39,12 +39,6 @@ importers:
 
   packages/core: {}
 
-  packages/events:
-    dependencies:
-      '@helix/core':
-        specifier: workspace:*
-        version: link:../core
-
   packages/models:
     dependencies:
       '@anthropic-ai/sdk':
@@ -62,9 +56,6 @@ importers:
       '@helix/core':
         specifier: workspace:*
         version: link:../core
-      '@helix/events':
-        specifier: workspace:*
-        version: link:../events
 
 packages:
 

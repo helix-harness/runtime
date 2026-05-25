@@ -15,28 +15,23 @@ import type { ToolDef } from "./tool";
  * - done:            Signals the end of the stream for this turn.
  */
 export type ModelChunk =
-    | {
-  type: "text_delta";
-  value: string;
-}
-    | {
-  type: "tool_call_delta";
-  toolCallId: string;
-  /** Tool name. May be undefined for the very first delta before the name is known. */
-  name?: string;
-  /** Incremental JSON string fragment (not yet valid JSON). UI use only. */
-  argsDelta: string;
-}
-    | {
-  type: "tool_call";
-  toolCallId: string;
-  name: string;
-  /** Fully parsed args object. Ready for ToolExecutor. */
-  args: unknown;
-}
-    | {
-  type: "done";
-};
+  | { type: "text_delta"; value: string }
+  | {
+      type: "tool_call_delta";
+      toolCallId: string;
+      /** Tool name. May be undefined for the very first delta before the name is known. */
+      name?: string;
+      /** Incremental JSON string fragment (not yet valid JSON). UI use only. */
+      argsDelta: string;
+    }
+  | {
+      type: "tool_call";
+      toolCallId: string;
+      name: string;
+      /** Fully parsed args object. Ready for ToolExecutor. */
+      args: unknown;
+    }
+  | { type: "done" };
 
 // ─── ModelAdapter ─────────────────────────────────────────────────────────────
 
@@ -50,22 +45,13 @@ export type ModelChunk =
  *
  * AbortSignal must be respected: when aborted, the generator should
  * stop yielding and return (or throw DOMException with name "AbortError").
- *
- * @example
- * class MyAdapter implements ModelAdapter {
- *   async *stream(messages, { tools, signal }) {
- *     // call your LLM here
- *     yield { type: "text_delta", value: "Hello" }
- *     yield { type: "done" }
- *   }
- * }
  */
 export interface ModelAdapter {
   stream(
-      messages: AgentMessage[],
-      opts: {
-        tools?: ToolDef[];
-        signal?: AbortSignal;
-      }
+    messages: AgentMessage[],
+    opts: {
+      tools?: ToolDef[];
+      signal?: AbortSignal;
+    }
   ): AsyncIterable<ModelChunk>;
 }

@@ -17,7 +17,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@helix/core": "workspace:*",
-    "@helix/events": "workspace:*"
+    "@helix/core": "workspace:*"
   }
 }

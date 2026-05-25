@@ -1,19 +1,21 @@
-import type { AgentContext, AgentMessage, ModelAdapter, ToolResult } from "@helix/core";
+import type { AgentContext, AgentMessage, ToolResult } from "@helix/core";
 import type { EventSink } from "../event";
 import { noopSink } from "../event";
 import { runAgentLoop } from "./run";
 
+// ─── AgentLoopConfig ──────────────────────────────────────────────────────────
+
 export interface AgentLoopConfig {
   /** LLM adapter to use for this loop. */
-  model: ModelAdapter;
+  model: import("@helix/core").ModelAdapter;
 
-  /** AbortSignal for cancellation. */
+  /** AbortSignal for cancellation. Passed through to model.stream() and tool execution. */
   signal?: AbortSignal;
 
   /**
-   * Transform messages before passing to LLM.
-   * Use for context compaction, RAG injection, or dynamic system prompt.
-   * Executed before convertToLlm on every turn.
+   * Transform messages before each LLM call.
+   * Called once per turn, before convertToLlm.
+   * Use for: context compaction, RAG injection, dynamic system prompt injection.
    */
   transformContext?: (
     messages: AgentMessage[],
@@ -21,15 +23,16 @@ export interface AgentLoopConfig {
   ) => Promise<AgentMessage[]>;
 
   /**
-   * Convert AgentMessage[] to the subset the LLM should see.
-   * Use to filter out UI-only or custom message types.
+   * Filter/convert AgentMessage[] to the subset the LLM should receive.
+   * Called every turn after transformContext.
    * Defaults to keeping: user, assistant, toolResult, system.
+   * Override to filter out UI-only or custom message types.
    */
   convertToLlm?: (messages: AgentMessage[]) => AgentMessage[];
 
   /**
    * Called before each tool execution.
-   * Return "block" to prevent the tool from running.
+   * Return "block" to prevent execution — a blocked error result is sent to the LLM instead.
    */
   beforeToolCall?: (ctx: {
     name: string;
@@ -37,7 +40,7 @@ export interface AgentLoopConfig {
   }) => Promise<"allow" | "block"> | "allow" | "block";
 
   /**
-   * Called after each tool execution completes (including errors).
+   * Called after each tool execution (including errors and blocked calls).
    */
   afterToolCall?: (ctx: {
     name: string;
@@ -46,8 +49,9 @@ export interface AgentLoopConfig {
   }) => Promise<void> | void;
 
   /**
-   * Called after each turn. Return true to stop the loop early.
-   * If not provided, the loop stops when the LLM produces no tool calls.
+   * Called after each turn completes.
+   * Return true to stop the loop early (before MAX_TURNS).
+   * Default behaviour: stop when the LLM produces no tool calls.
    */
   shouldStopAfterTurn?: (ctx: {
     message: AgentMessage;
@@ -61,24 +65,26 @@ export interface AgentLoopConfig {
  * Core stateless agent loop.
  *
  * Drives the LLM → tool_call → execute → result → LLM cycle.
- * All state is passed in via `context`; none is held internally.
+ * All state lives in `context`; nothing is held inside the loop.
  * All behaviour is observable via the `sink` callback.
  *
- * @param prompts   New messages to send this turn (typically one user message).
- * @param context   Current agent context (systemPrompt, messages, tools).
- * @param config    Model, hooks, and loop configuration.
- * @param sink      Event sink — called synchronously for every AgentEvent.
- * @returns         New messages produced during this run (assistant + toolResults).
+ * @param prompts   New messages for this run (typically one user message).
+ * @param context   Current agent context: systemPrompt, message history, tools.
+ * @param config    Model, hooks, and loop options.
+ * @param sink      Called synchronously on every AgentEvent.
+ * @returns         All new messages produced: assistant messages + tool results.
  *
  * @example
  * const context: AgentContext = { systemPrompt: "...", messages: [], tools: [] }
- * const newMessages = await agentLoop(
- *   [{ role: "user", content: "hello", timestamp: Date.now() }],
+ *
+ * const newMsgs = await agentLoop(
+ *   [{ role: "user", content: "Hello", timestamp: Date.now() }],
  *   context,
  *   { model },
- *   (event) => console.log(event.type)
+ *   (e) => console.log(e.type)
  * )
- * context.messages.push(...newMessages)
+ *
+ * context.messages.push(...newMsgs)
  */
 export async function agentLoop(
   prompts: AgentMessage[],
@@ -91,7 +97,7 @@ export async function agentLoop(
 
 /**
  * Continue the loop from the current context without adding new user messages.
- * Useful for retrying after an error or resuming a paused session.
+ * Useful for retrying after an error or resuming an interrupted run.
  */
 export async function agentLoopContinue(
   context: AgentContext,
