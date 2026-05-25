@@ -1,17 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ModelAdapter, AgentMessage, ToolDef, ModelChunk } from "@helix/core";
 
-export interface AnthropicAdapterOptions {
+export interface AnthropicCompatibleAdapterOptions {
   apiKey: string;
   model?: string;
   baseURL?: string;
   maxTokens?: number;
 }
 
-export class AnthropicAdapter implements ModelAdapter {
+export class AnthropicCompatibleAdapter implements ModelAdapter {
   private client: Anthropic;
 
-  constructor(private options: AnthropicAdapterOptions) {
+  constructor(private options: AnthropicCompatibleAdapterOptions) {
     this.client = new Anthropic({
       apiKey: options.apiKey,
       baseURL: options.baseURL,

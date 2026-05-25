@@ -4,5 +4,5 @@ export type { ModelParams } from "./getModel";
 export { OpenAICompatibleAdapter } from "./adapters/openai";
 export type { OpenAICompatibleAdapterOptions } from "./adapters/openai";
 
-export { AnthropicAdapter } from "./adapters/anthropic";
-export type { AnthropicAdapterOptions } from "./adapters/anthropic";
+export { AnthropicCompatibleAdapter } from "./adapters/anthropic";
+export type { AnthropicCompatibleAdapterOptions } from "./adapters/anthropic";

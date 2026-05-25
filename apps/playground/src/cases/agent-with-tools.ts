@@ -10,10 +10,8 @@
 
 import { Agent } from "@helix/runtime";
 import { getModel } from "@helix/models";
-import type { ToolDef } from "@helix/core";
 
-
-const getWeatherTool: ToolDef<{ city: string }> = {
+const getWeatherTool = {
   name: "get_weather",
   description: "获取指定城市的天气",
   parameters: {
@@ -23,12 +21,14 @@ const getWeatherTool: ToolDef<{ city: string }> = {
     },
     required: ["city"],
   },
-  execute: async ({ city }: { city: string }) => {
+  execute: async (args: unknown) => {
     // 模拟 API 调用延迟
     await new Promise((r) => setTimeout(r, 500));
+    const { city } = args as { city: string };
     return { city, weather: "晴天", temperature: 25 };
   },
 };
+
 
 export async function agentWithTools() {
   console.log("\n========== Case: Agent with Tools ==========\n");

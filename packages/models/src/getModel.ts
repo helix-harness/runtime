@@ -1,6 +1,6 @@
 import type { ModelAdapter } from "@helix/core";
 import { OpenAICompatibleAdapter } from "./adapters/openai";
-import { AnthropicAdapter } from "./adapters/anthropic";
+import { AnthropicCompatibleAdapter } from "./adapters/anthropic";
 
 // ─── ModelParams ──────────────────────────────────────────────────────────────
 
@@ -16,7 +16,7 @@ export interface ModelParams {
    *
    * @default "openai-compatible"
    */
-  provider?: "openai-compatible" | "anthropic";
+  provider?: "openai-compatible" | "anthropic-compatible";
 
   /** Model ID to use. e.g. "gpt-4o", "claude-sonnet-4-20250514" */
   model: string;
@@ -73,8 +73,8 @@ export function getModel(params: ModelParams): ModelAdapter {
         maxTokens: params.maxTokens,
       });
 
-    case "anthropic":
-      return new AnthropicAdapter({
+    case "anthropic-compatible":
+      return new AnthropicCompatibleAdapter({
         apiKey: params.apiKey,
         model: params.model,
         baseURL: params.baseURL,
@@ -84,7 +84,7 @@ export function getModel(params: ModelParams): ModelAdapter {
     default:
       throw new Error(
         `[helix/models] Unknown provider: "${provider}". ` +
-          `Valid values: "openai-compatible", "anthropic".`
+          `Valid values: "openai-compatible", "anthropic-compatible".`
       );
   }
 }
