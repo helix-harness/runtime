@@ -9,7 +9,7 @@
  */
 
 import { Agent } from "@helix/runtime";
-import { getModel } from "@helix/models";
+import { createModel, checkEnv } from "./shared";
 
 const getWeatherTool = {
   name: "get_weather",
@@ -33,21 +33,14 @@ const getWeatherTool = {
 export async function agentWithTools() {
   console.log("\n========== Case: Agent with Tools ==========\n");
 
-  if (!process.env.LLM_API_KEY) {
-    console.log("❌ LLM_API_KEY 未设置");
+  if (!checkEnv()) {
     console.log("\n========== Case 结束 ==========\n");
     return;
   }
 
-  const modelId = process.env.LLM_MODEL_ID ?? "gpt-4o";
-
   // 创建 Agent
   const agent = new Agent({
-    model: getModel({
-      model: modelId,
-      apiKey: process.env.LLM_API_KEY,
-      baseURL: process.env.LLM_BASE_URL,
-    }),
+    model: createModel(),
     systemPrompt: "你是一个智能助手，可以调用工具来回答问题。",
     tools: [getWeatherTool],
   });

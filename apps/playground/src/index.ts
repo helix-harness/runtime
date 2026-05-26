@@ -12,6 +12,11 @@ import { eventSequence } from "./cases/event-sequence";
 import { multiTurn } from "./cases/multi-turn";
 import { convert } from "./cases/convert";
 import { compaction } from "./cases/compaction";
+import { abortSignal } from "./cases/abort-signal";
+import { anthropicToolCall } from "./cases/anthropic-tool-call";
+import { toolCallBasic } from "./cases/tool-call-basic";
+import { toolExecutionMode } from "./cases/tool-execution-mode";
+import { toolHooks } from "./cases/tool-hooks";
 
 type Case = {
   name: string;
@@ -20,12 +25,24 @@ type Case = {
 };
 
 const cases: Case[] = [
-  { name: "model-basic", description: "Model Layer 基础配置", run: modelBasic },
-  { name: "agent-with-tools", description: "Agent Class + Tool Calling", run: agentWithTools },
-  { name: "event-sequence", description: "v0.2.1: 断言事件顺序", run: eventSequence },
-  { name: "multi-turn", description: "v0.2.1: 多轮对话消息累积", run: multiTurn },
-  { name: "convert", description: "v0.2.2: convertToLlm 验证", run: convert },
-  { name: "compaction", description: "v0.2.3: transformContext (压缩) 验证", run: compaction },
+  // ── Model Layer ──────────────────────────────────────────────────────────────
+  { name: "model-basic", description: "Model Layer: 基础配置", run: modelBasic },
+
+  // ── Agent Core ─────────────────────────────────────────────────────────────
+  { name: "agent-with-tools", description: "Agent Class: 有状态封装 + Tool Calling", run: agentWithTools },
+
+  // ── v0.2 Message Transform Layer ───────────────────────────────────────────
+  { name: "event-sequence", description: "事件: 断言事件顺序正确", run: eventSequence },
+  { name: "multi-turn", description: "消息: 多轮对话累积", run: multiTurn },
+  { name: "convert", description: "钩子: convertToLlm 验证", run: convert },
+  { name: "compaction", description: "钩子: transformContext 压缩验证", run: compaction },
+
+  // ── Tool Calling ────────────────────────────────────────────────────────────
+  { name: "tool-call-basic", description: "Tool: 基础 tool 调用", run: toolCallBasic },
+  { name: "tool-execution-mode", description: "Tool: parallel/sequential 执行模式", run: toolExecutionMode },
+  { name: "tool-hooks", description: "Tool: beforeToolCall/afterToolCall 钩子", run: toolHooks },
+  { name: "abort-signal", description: "Tool: AbortSignal 中断验证", run: abortSignal },
+  { name: "anthropic-tool-call", description: "Tool: Anthropic Adapter tool 调用", run: anthropicToolCall },
 ];
 
 async function main() {

@@ -7,25 +7,18 @@
  */
 
 import { Agent } from "@helix/runtime";
-import { getModel } from "@helix/models";
+import { createModel, checkEnv } from "./shared";
 
 export async function multiTurn() {
   console.log("\n========== Case: Multi-Turn ==========\n");
 
-  if (!process.env.LLM_API_KEY) {
-    console.log("❌ LLM_API_KEY 未设置");
+  if (!checkEnv()) {
     console.log("\n========== Case 结束 ==========\n");
     return;
   }
 
-  const modelId = process.env.LLM_MODEL_ID ?? "gpt-4o";
-
   const agent = new Agent({
-    model: getModel({
-      model: modelId,
-      apiKey: process.env.LLM_API_KEY,
-      baseURL: process.env.LLM_BASE_URL,
-    }),
+    model: createModel(),
     systemPrompt: "你是一个简洁的助手。",
   });
 
