@@ -1,7 +1,7 @@
-import type { AgentContext, AgentMessage, ToolResult } from "@helix/core";
+import type { AgentContext, AgentMessage, ToolCallRef, ToolDef, ToolResult } from "@helix/core";
 import type { AgentEvent } from "../event";
 import type { AgentLoopConfig } from "./index";
-import { ToolRegistry, ToolExecutor } from "../tool";
+import { ToolRegistry } from "../tool";
 
 const MAX_TURNS = 20;
 
@@ -16,7 +16,6 @@ export async function* runAgentLoop(
 
   const registry = new ToolRegistry();
   if (context.tools?.length) registry.registerAll(context.tools);
-  const executor = new ToolExecutor();
 
   // All messages produced during this run (returned via agent_end event)
   const newMessages: AgentMessage[] = [];
@@ -140,23 +139,85 @@ export async function* runAgentLoop(
         allowedCalls.push(call);
       }
 
-      // ── Execute tool calls — yield tool_execution_* events ─────────────────
-      const executeGen = executor.executeAll(allowedCalls, registry, signal);
-      let next = await executeGen.next();
-      while (!next.done) {
-        yield next.value;           // tool_execution_start / tool_execution_end
-        next = await executeGen.next();
-      }
-      const executedResults = next.value; // ToolResult[]
+      // ── Execute tool calls — yield events, call hooks in correct order ───────
+      //
+      // Correct order per turn (matches pi):
+      //   tool_execution_start  (all, immediately)
+      //   [tools run — parallel or sequential]
+      //   afterToolCall hook          ← BEFORE tool_execution_end
+      //   tool_execution_end
+      //   toolResult messages
+      //   turn_end
+      //
+      const executedResults: ToolResult[] = [];
 
-      // afterToolCall hook
-      if (config.afterToolCall) {
-        for (const result of executedResults) {
-          await config.afterToolCall({
-            name: allowedCalls.find((c) => c.toolCallId === result.toolCallId)?.name ?? "",
+      // Determine execution mode: sequential if any tool requires it
+      const hasSequential = allowedCalls.some(
+        (c) => registry.get(c.name)?.executionMode === "sequential"
+      );
+      const batchMode = hasSequential ? "sequential" : "parallel";
+
+      if (batchMode === "parallel" && allowedCalls.length > 1) {
+        // Emit all tool_execution_start events first
+        for (const call of allowedCalls) {
+          yield { type: "tool_execution_start", toolCallId: call.toolCallId, name: call.name, args: call.args };
+        }
+
+        // Run all tools concurrently
+        const results = await Promise.all(
+          allowedCalls.map((call) => executeToolCall(call, registry, signal))
+        );
+
+        // For each result: afterToolCall → tool_execution_end (in source order)
+        for (const result of results) {
+          const call = allowedCalls.find((c) => c.toolCallId === result.toolCallId)!;
+
+          // Bug 2 fix: afterToolCall BEFORE tool_execution_end
+          if (config.afterToolCall) {
+            await config.afterToolCall({
+              name: call.name,
+              result: result.content,
+              isError: result.isError,
+            });
+          }
+
+          yield {
+            type: "tool_execution_end",
+            toolCallId: result.toolCallId,
+            name: call.name,
             result: result.content,
             isError: result.isError,
-          });
+            durationMs: result.durationMs,
+          };
+
+          executedResults.push(result);
+        }
+      } else {
+        // Sequential: one at a time
+        for (const call of allowedCalls) {
+          yield { type: "tool_execution_start", toolCallId: call.toolCallId, name: call.name, args: call.args };
+
+          const result = await executeToolCall(call, registry, signal);
+
+          // Bug 2 fix: afterToolCall BEFORE tool_execution_end
+          if (config.afterToolCall) {
+            await config.afterToolCall({
+              name: call.name,
+              result: result.content,
+              isError: result.isError,
+            });
+          }
+
+          yield {
+            type: "tool_execution_end",
+            toolCallId: result.toolCallId,
+            name: call.name,
+            result: result.content,
+            isError: result.isError,
+            durationMs: result.durationMs,
+          };
+
+          executedResults.push(result);
         }
       }
 
@@ -178,6 +239,11 @@ export async function* runAgentLoop(
 
       newMessages.push(...toolResultMessages);
       yield { type: "turn_end", message: assistantMsg, toolResults: allResults };
+
+      const allTerminate = allResults.length > 0 &&
+        allResults.every((r) => (r as any).terminate === true);
+
+      if (allTerminate) break;
 
       // shouldStopAfterTurn hook
       if (config.shouldStopAfterTurn) {
@@ -204,6 +270,56 @@ function defaultConvertToLlm(messages: AgentMessage[]): AgentMessage[] {
   return messages.filter((m) =>
     ["user", "assistant", "toolResult", "system"].includes(m.role)
   );
+}
+
+/**
+ * Execute a single tool call. Never throws — errors are captured into ToolResult.
+ * Used directly by runAgentLoop so we can interleave afterToolCall between
+ * execution and tool_execution_end emission.
+ */
+async function executeToolCall(
+  call: ToolCallRef,
+  registry: ToolRegistry,
+  signal?: AbortSignal
+): Promise<ToolResult> {
+  const start = Date.now();
+
+  const tool = registry.get(call.name);
+  if (!tool) {
+    return {
+      toolCallId: call.toolCallId,
+      content: `Tool not found: "${call.name}"`,
+      isError: true,
+      durationMs: Date.now() - start,
+    };
+  }
+
+  if (signal?.aborted) {
+    return {
+      toolCallId: call.toolCallId,
+      content: "Tool execution aborted",
+      isError: true,
+      durationMs: Date.now() - start,
+    };
+  }
+
+  try {
+    const output = await tool.execute(call.args);
+    const content = typeof output === "string" ? output : JSON.stringify(output);
+    return {
+      toolCallId: call.toolCallId,
+      content,
+      isError: false,
+      durationMs: Date.now() - start,
+    };
+  } catch (err) {
+    return {
+      toolCallId: call.toolCallId,
+      content: err instanceof Error ? err.message : String(err),
+      isError: true,
+      durationMs: Date.now() - start,
+    };
+  }
 }
 
 /**

@@ -1,7 +1,7 @@
 import type { AgentContext, AgentMessage, ModelAdapter, ToolDef } from "@helix/core";
-import type { AgentEvent } from "../event/types";
-import type { AgentLoopConfig } from "../loop/index";
-import { agentLoop, agentLoopContinue } from "../loop/index";
+import type { AgentEvent } from "../event";
+import type { AgentLoopConfig } from "../loop";
+import { agentLoop, agentLoopContinue } from "../loop";
 
 // ─── AgentOptions ─────────────────────────────────────────────────────────────
 
@@ -109,8 +109,32 @@ export class Agent {
   /**
    * Continue the loop from the current context without a new user message.
    * Useful for retrying after an error or resuming an interrupted run.
+   *
+   * Precondition: the last message in context must be "user" or "toolResult".
+   * Calling continue() when the last message is "assistant" is a logic error —
+   * the LLM would see an assistant message with no follow-up, which produces
+   * unpredictable results.
+   *
+   * @throws Error if context is empty or last message role is "assistant"
    */
   async continue(opts?: { signal?: AbortSignal }): Promise<void> {
+    // ── Bug 3 fix: validate context before continuing ──────────────────────
+    const messages = this.context.messages;
+    if (messages.length === 0) {
+      throw new Error(
+        "[helix/runtime] Agent.continue() called with empty message history. " +
+        "Use agent.prompt() to start a conversation."
+      );
+    }
+    const lastRole = messages[messages.length - 1]!.role;
+    if (lastRole === "assistant") {
+      throw new Error(
+        "[helix/runtime] Agent.continue() called after an assistant message. " +
+        "The last message must be 'user' or 'toolResult'. " +
+        "Use agent.prompt() to send a new user message instead."
+      );
+    }
+
     this.abortController = new AbortController();
     const signal = opts?.signal ?? this.abortController.signal;
 
