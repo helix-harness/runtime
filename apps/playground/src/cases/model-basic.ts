@@ -2,11 +2,11 @@
  * Case 1: Model Layer 基础调用测试
  */
 
-import { getModel } from "@helix/models";
-import type { AgentMessage } from "@helix/core";
+import { createModel } from "./shared";
+import type { AgentMessage, ModelAdapter } from "@helix/core";
 
 
-async function runStream(label: string, model: ReturnType<typeof getModel>) {
+async function runStream(label: string, model: ModelAdapter) {
   const messages: AgentMessage[] = [
     { role: "user", content: "1+1=? 只回答数字", timestamp: Date.now() },
   ];
@@ -26,21 +26,11 @@ async function runStream(label: string, model: ReturnType<typeof getModel>) {
 export async function modelBasic() {
     console.log("\n========== Case 1: Model Basic ==========\n");
 
-    if (!process.env.LLM_API_KEY) {
-        console.log("❌ LLM_API_KEY 未设置");
-        console.log("\n========== Case 1 结束 ==========\n");
-        return;
-    }
-
-    const modelId = process.env.LLM_MODEL_ID ?? "gpt-4o";
+    const model = createModel();
 
     await runStream(
-        modelId,
-        getModel({
-            model: modelId,
-            apiKey: process.env.LLM_API_KEY,
-            baseURL: process.env.LLM_BASE_URL,
-        })
+        process.env.LLM_MODEL_ID ?? "gpt-4o",
+        model
     );
     console.log("\n========== Case 1 结束 ==========\n");
 }

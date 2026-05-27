@@ -1,56 +1,44 @@
 import type { AgentContext, AgentMessage, ToolResult } from "@helix/core";
+import type { AgentEvent } from "../event";
 import type { AgentLoopConfig } from "./index";
-import type { EventSink } from "../event";
-import {
-  emitAgentStart,
-  emitAgentEnd,
-  emitTurnStart,
-  emitTurnEnd,
-  emitMessageStart,
-  emitMessageUpdate,
-  emitMessageEnd,
-  emitContextCompacted,
-  emitError,
-} from "../event";
 import { ToolRegistry, ToolExecutor } from "../tool";
 
 const MAX_TURNS = 20;
 
 // ─── runAgentLoop ─────────────────────────────────────────────────────────────
 
-export async function runAgentLoop(
+export async function* runAgentLoop(
   prompts: AgentMessage[],
   context: AgentContext,
-  config: AgentLoopConfig,
-  sink: EventSink
-): Promise<AgentMessage[]> {
+  config: AgentLoopConfig
+): AsyncGenerator<AgentEvent> {
   const { model, signal } = config;
 
   const registry = new ToolRegistry();
   if (context.tools?.length) registry.registerAll(context.tools);
   const executor = new ToolExecutor();
 
-  // All messages produced during this run (returned to caller for accumulation)
+  // All messages produced during this run (returned via agent_end event)
   const newMessages: AgentMessage[] = [];
 
-  emitAgentStart(sink);
+  yield { type: "agent_start" };
 
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       if (signal?.aborted) break;
 
-      emitTurnStart(sink);
+      yield { type: "turn_start" };
 
       // ── Emit user messages on first turn only ──────────────────────────────
       if (turn === 0) {
         for (const msg of prompts) {
-          emitMessageStart(sink, msg);
-          emitMessageEnd(sink, msg);
+          yield { type: "message_start", message: msg };
+          yield { type: "message_end", message: msg };
         }
       }
 
       // ── Build current turn's full message list ─────────────────────────────
-      // Re-built every turn so transformContext always sees the latest messages.
+      // Re-built every turn so transformContext always sees the latest state.
       let turnMessages: AgentMessage[] = [
         ...context.messages,
         ...prompts,
@@ -63,11 +51,11 @@ export async function runAgentLoop(
         turnMessages = await config.transformContext(turnMessages, signal);
         const tokensAfter = estimateTokens(turnMessages);
         if (tokensAfter < tokensBefore) {
-          emitContextCompacted(sink, tokensBefore, tokensAfter);
+          yield { type: "context_compacted", tokensBefore, tokensAfter };
         }
       }
 
-      // convertToLlm: filter out UI-only / custom message types
+      // convertToLlm: filter UI-only / custom message types
       const llmMessages = config.convertToLlm
         ? config.convertToLlm(turnMessages)
         : defaultConvertToLlm(turnMessages);
@@ -80,7 +68,7 @@ export async function runAgentLoop(
         toolCalls: [],
       };
 
-      emitMessageStart(sink, assistantMsg);
+      yield { type: "message_start", message: assistantMsg };
 
       for await (const chunk of model.stream(llmMessages, {
         tools: registry.list(),
@@ -91,7 +79,7 @@ export async function runAgentLoop(
         switch (chunk.type) {
           case "text_delta":
             assistantMsg.content += chunk.value;
-            emitMessageUpdate(sink, assistantMsg, chunk.value);
+            yield { type: "message_update", message: assistantMsg, delta: chunk.value };
             break;
 
           case "tool_call":
@@ -107,22 +95,22 @@ export async function runAgentLoop(
         }
       }
 
-      emitMessageEnd(sink, assistantMsg);
+      yield { type: "message_end", message: assistantMsg };
       newMessages.push(assistantMsg);
 
       // ── No tool calls → check stop condition ──────────────────────────────
       if (!assistantMsg.toolCalls?.length) {
-        emitTurnEnd(sink, assistantMsg, []);
+        yield { type: "turn_end", message: assistantMsg, toolResults: [] };
 
         const shouldStop = config.shouldStopAfterTurn
           ? await config.shouldStopAfterTurn({ message: assistantMsg, toolResults: [] })
-          : true; // Default: stop when LLM produces no tool calls
+          : true;
 
         if (shouldStop) break;
         continue;
       }
 
-      // ── Apply beforeToolCall + collect blocked results ─────────────────────
+      // ── beforeToolCall: filter blocked calls ───────────────────────────────
       const callsToRun = assistantMsg.toolCalls ?? [];
       const allowedCalls: typeof callsToRun = [];
       const blockedResults: ToolResult[] = [];
@@ -131,19 +119,18 @@ export async function runAgentLoop(
         if (config.beforeToolCall) {
           const decision = await config.beforeToolCall({ name: call.name, args: call.args });
           if (decision === "block") {
-            const blockedResult: ToolResult = {
+            const blocked: ToolResult = {
               toolCallId: call.toolCallId,
               content: `Tool "${call.name}" was blocked by policy.`,
               isError: true,
               durationMs: 0,
             };
-            blockedResults.push(blockedResult);
+            blockedResults.push(blocked);
 
-            // Notify afterToolCall for blocked calls too
             if (config.afterToolCall) {
               await config.afterToolCall({
                 name: call.name,
-                result: blockedResult.content,
+                result: blocked.content,
                 isError: true,
               });
             }
@@ -153,15 +140,16 @@ export async function runAgentLoop(
         allowedCalls.push(call);
       }
 
-      // ── Execute allowed tool calls ─────────────────────────────────────────
-      const executedResults = await executor.executeAll(
-        allowedCalls,
-        registry,
-        sink,
-        signal
-      );
+      // ── Execute tool calls — yield tool_execution_* events ─────────────────
+      const executeGen = executor.executeAll(allowedCalls, registry, signal);
+      let next = await executeGen.next();
+      while (!next.done) {
+        yield next.value;           // tool_execution_start / tool_execution_end
+        next = await executeGen.next();
+      }
+      const executedResults = next.value; // ToolResult[]
 
-      // afterToolCall hook for executed calls
+      // afterToolCall hook
       if (config.afterToolCall) {
         for (const result of executedResults) {
           await config.afterToolCall({
@@ -172,13 +160,12 @@ export async function runAgentLoop(
         }
       }
 
-      // Merge blocked + executed results, preserving original tool call order
-      const allResults: ToolResult[] = callsToRun.map((call) => {
-        return (
+      // Merge blocked + executed, preserving original tool call order
+      const allResults: ToolResult[] = callsToRun.map(
+        (call) =>
           executedResults.find((r) => r.toolCallId === call.toolCallId) ??
           blockedResults.find((r) => r.toolCallId === call.toolCallId)!
-        );
-      });
+      );
 
       // Append tool result messages
       const toolResultMessages: AgentMessage[] = allResults.map((r) => ({
@@ -190,9 +177,9 @@ export async function runAgentLoop(
       }));
 
       newMessages.push(...toolResultMessages);
-      emitTurnEnd(sink, assistantMsg, allResults);
+      yield { type: "turn_end", message: assistantMsg, toolResults: allResults };
 
-      // ── shouldStopAfterTurn hook ───────────────────────────────────────────
+      // shouldStopAfterTurn hook
       if (config.shouldStopAfterTurn) {
         const shouldStop = await config.shouldStopAfterTurn({
           message: assistantMsg,
@@ -203,13 +190,12 @@ export async function runAgentLoop(
     }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    emitError(sink, error, true);
-    emitAgentEnd(sink, newMessages);
+    yield { type: "error", error, fatal: true };
+    yield { type: "agent_end", messages: newMessages };
     throw err;
   }
 
-  emitAgentEnd(sink, newMessages);
-  return newMessages;
+  yield { type: "agent_end", messages: newMessages };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

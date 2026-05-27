@@ -1,4 +1,4 @@
-import type { AgentContext, AgentMessage, ModelAdapter, ToolDef, ToolResult } from "@helix/core";
+import type { AgentContext, AgentMessage, ModelAdapter, ToolDef } from "@helix/core";
 import type { AgentEvent } from "../event";
 import type { AgentLoopConfig } from "../loop";
 import { agentLoop, agentLoopContinue } from "../loop";
@@ -16,8 +16,8 @@ export interface AgentOptions extends Omit<AgentLoopConfig, "model" | "signal"> 
 /**
  * Stateful wrapper around agentLoop.
  *
- * Manages the AgentContext (message accumulation) so callers don't have to.
- * All events are observable via subscribe().
+ * Manages AgentContext (message accumulation) so callers don't have to.
+ * Consumes the AsyncGenerator internally; exposes subscribe() for events.
  *
  * @example
  * const agent = new Agent({
@@ -60,7 +60,7 @@ export class Agent {
 
   /**
    * Subscribe to all agent events.
-   * Returns an unsubscribe function — call it to stop receiving events.
+   * Returns an unsubscribe function.
    */
   subscribe(handler: (e: AgentEvent) => void): () => void {
     this.handlers.push(handler);
@@ -86,13 +86,21 @@ export class Agent {
     const signal = opts?.signal ?? this.abortController.signal;
 
     try {
-      const newMessages = await agentLoop(
+      const stream = agentLoop(
         [userMsg],
         this.context,
-        { ...this.loopConfig, signal },
-        (e) => this.handlers.forEach((h) => h(e))
+        { ...this.loopConfig, signal }
       );
-      this.context.messages.push(userMsg, ...newMessages);
+
+      for await (const event of stream) {
+        // Dispatch to subscribers
+        this.handlers.forEach((h) => h(event));
+
+        // Accumulate messages on agent_end
+        if (event.type === "agent_end") {
+          this.context.messages.push(userMsg, ...event.messages);
+        }
+      }
     } finally {
       this.abortController = null;
     }
@@ -107,12 +115,18 @@ export class Agent {
     const signal = opts?.signal ?? this.abortController.signal;
 
     try {
-      const newMessages = await agentLoopContinue(
+      const stream = agentLoopContinue(
         this.context,
-        { ...this.loopConfig, signal },
-        (e) => this.handlers.forEach((h) => h(e))
+        { ...this.loopConfig, signal }
       );
-      this.context.messages.push(...newMessages);
+
+      for await (const event of stream) {
+        this.handlers.forEach((h) => h(event));
+
+        if (event.type === "agent_end") {
+          this.context.messages.push(...event.messages);
+        }
+      }
     } finally {
       this.abortController = null;
     }
