@@ -1,7 +1,7 @@
 import type { AgentContext, AgentMessage, ModelAdapter, ToolDef } from "@helix/core";
-import type { AgentEvent } from "../event";
-import type { AgentLoopConfig } from "../loop";
-import { agentLoop, agentLoopContinue } from "../loop";
+import type { AgentEvent } from "../event/types";
+import type { AgentLoopConfig } from "../loop/index";
+import { agentLoop, agentLoopContinue } from "../loop/index";
 
 // ─── AgentOptions ─────────────────────────────────────────────────────────────
 

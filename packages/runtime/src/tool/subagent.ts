@@ -1,5 +1,5 @@
 import type { ToolDef, AgentMessage } from "@helix/core";
-import type { AgentEvent } from "../event/types";
+import type { AgentEvent } from "../event";
 
 export interface SubagentToolOpts {
   /** Tool name used by the parent LLM to invoke this sub-agent. */

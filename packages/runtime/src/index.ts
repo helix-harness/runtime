@@ -9,6 +9,8 @@ export type { AgentLoopConfig } from "./loop/index";
 // ─── Tools ───────────────────────────────────────────────────────────────────
 export { ToolRegistry } from "./tool/ToolRegistry";
 export { ToolExecutor } from "./tool/ToolExecutor";
+export { createSubagentTool } from "./tool/subagent";
+export type { SubagentToolOpts, SubagentInterface } from "./tool/subagent";
 
 // ─── Events ──────────────────────────────────────────────────────────────────
 export type { AgentEvent } from "./event/types";
