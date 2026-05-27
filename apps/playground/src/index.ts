@@ -19,6 +19,8 @@ import { toolExecutionMode } from "./cases/tool-execution-mode";
 import { toolHooks } from "./cases/tool-hooks";
 import { asyncGeneratorCase } from "./cases/async-generator";
 import { sessionCase } from "./cases/session";
+import { subagentBasic } from "./cases/subagent-basic";
+import { subagentAdvanced } from "./cases/subagent-advanced";
 
 type Case = {
   name: string;
@@ -51,6 +53,10 @@ const cases: Case[] = [
 
   // ── v0.6 Session Persistence ────────────────────────────────────────────────
   { name: "session", description: "Session: 持久化存储验证", run: sessionCase },
+
+  // ── v0.7 Sub-agent ──────────────────────────────────────────────────────────
+  { name: "subagent-basic", description: "Sub-agent: 基础 createSubagentTool 验证", run: subagentBasic },
+  { name: "subagent-advanced", description: "Sub-agent: 跨 provider / 嵌套 / 拦截", run: subagentAdvanced },
 ];
 
 async function main() {
