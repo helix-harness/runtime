@@ -21,6 +21,7 @@ import { asyncGeneratorCase } from "./cases/async-generator";
 import { sessionCase } from "./cases/session";
 import { subagentBasic } from "./cases/subagent-basic";
 import { subagentAdvanced } from "./cases/subagent-advanced";
+import { newFeatures } from "./cases/new-features";
 
 type Case = {
   name: string;
@@ -57,6 +58,9 @@ const cases: Case[] = [
   // ── v0.7 Sub-agent ──────────────────────────────────────────────────────────
   { name: "subagent-basic", description: "Sub-agent: 基础 createSubagentTool 验证", run: subagentBasic },
   { name: "subagent-advanced", description: "Sub-agent: 跨 provider / 嵌套 / 拦截", run: subagentAdvanced },
+
+  // ── v1.0 New Features ──────────────────────────────────────────────────────
+  { name: "new-features", description: "v1.0: streamFn / thinkingLevel / steeringMode / waitForIdle / continue 校验", run: newFeatures },
 ];
 
 async function main() {
