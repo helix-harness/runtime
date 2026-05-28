@@ -1,57 +1,93 @@
 import type { AgentMessage } from "./message";
 import type { ToolDef } from "./tool";
 
+// ─── ThinkingLevel ────────────────────────────────────────────────────────────
+
+/**
+ * Controls extended thinking / reasoning budget for models that support it.
+ * - "off":    No extended thinking (default).
+ * - "minimal" .. "xhigh": Progressively larger token budgets for reasoning.
+ *
+ * Currently supported by: Anthropic Claude 3.7+, Claude 3.5 Sonnet (some versions).
+ * Ignored by adapters whose model does not support extended thinking.
+ */
+export type ThinkingLevel =
+  | "off"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh";
+
+/** Maps ThinkingLevel to approximate token budgets. Adapters may use these. */
+export const THINKING_BUDGETS: Record<ThinkingLevel, number> = {
+  off: 0,
+  minimal: 1_000,
+  low: 5_000,
+  medium: 10_000,
+  high: 20_000,
+  xhigh: 32_000,
+};
+
 // ─── ModelChunk ───────────────────────────────────────────────────────────────
 
 /**
  * A single chunk emitted by ModelAdapter.stream().
  *
- * - text_delta:      A fragment of the assistant's text response (streaming token).
+ * - text_delta:      A fragment of the assistant's text response.
+ * - thinking_delta:  A fragment of extended thinking / reasoning output.
+ *                    Emitted when thinkingLevel is not "off". UI only — the
+ *                    runtime loop does not process thinking content.
  * - tool_call_delta: Incremental JSON fragment for a tool call's arguments.
- *                    Intended for UIs that want to show streaming tool args.
- *                    The runtime loop does NOT process this — it waits for tool_call.
+ *                    UI only — the runtime loop waits for the complete tool_call.
  * - tool_call:       A complete, fully-parsed tool call ready for execution.
- *                    Emitted once per tool call after all argument fragments arrive.
- * - done:            Signals the end of the stream for this turn.
+ * - done:            Signals end of stream for this turn.
  */
 export type ModelChunk =
   | { type: "text_delta"; value: string }
+  | { type: "thinking_delta"; value: string }
   | {
       type: "tool_call_delta";
       toolCallId: string;
-      /** Tool name. May be undefined for the very first delta before the name is known. */
       name?: string;
-      /** Incremental JSON string fragment (not yet valid JSON). UI use only. */
       argsDelta: string;
     }
   | {
       type: "tool_call";
       toolCallId: string;
       name: string;
-      /** Fully parsed args object. Ready for ToolExecutor. */
       args: unknown;
     }
   | { type: "done" };
+
+// ─── StreamOpts ───────────────────────────────────────────────────────────────
+
+export interface StreamOpts {
+  tools?: ToolDef[];
+  signal?: AbortSignal;
+  /**
+   * Extended thinking level. Adapters that don't support it should ignore this.
+   * @default "off"
+   */
+  thinkingLevel?: ThinkingLevel;
+}
 
 // ─── ModelAdapter ─────────────────────────────────────────────────────────────
 
 /**
  * The contract between @helix/runtime and any LLM provider.
  *
- * Implementors must yield ModelChunk values in this order per turn:
- *   1. Zero or more text_delta / tool_call_delta (interleaved, optional)
- *   2. Zero or more tool_call (one per tool the LLM wants to invoke)
- *   3. Exactly one done
+ * Chunk order per turn:
+ *   1. Zero or more thinking_delta (if thinkingLevel != "off" and model supports it)
+ *   2. Zero or more text_delta / tool_call_delta (interleaved)
+ *   3. Zero or more tool_call (one per tool the LLM wants to invoke)
+ *   4. Exactly one done
  *
- * AbortSignal must be respected: when aborted, the generator should
- * stop yielding and return (or throw DOMException with name "AbortError").
+ * AbortSignal must be respected — stop yielding and return when aborted.
  */
 export interface ModelAdapter {
   stream(
     messages: AgentMessage[],
-    opts: {
-      tools?: ToolDef[];
-      signal?: AbortSignal;
-    }
+    opts: StreamOpts
   ): AsyncIterable<ModelChunk>;
 }

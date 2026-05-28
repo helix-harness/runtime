@@ -1,10 +1,10 @@
 // ─── Agent (stateful) ────────────────────────────────────────────────────────
 export { Agent } from "./agent/agent";
-export type { AgentOptions } from "./agent/agent";
+export type { AgentOptions, SteeringMode } from "./agent/agent";
 
 // ─── agentLoop (stateless) ───────────────────────────────────────────────────
 export { agentLoop, agentLoopContinue } from "./loop/index";
-export type { AgentLoopConfig } from "./loop/index";
+export type { AgentLoopConfig, StreamFn } from "./loop/index";
 
 // ─── Tools ───────────────────────────────────────────────────────────────────
 export { ToolRegistry } from "./tool/ToolRegistry";

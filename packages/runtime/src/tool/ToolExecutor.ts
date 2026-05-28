@@ -2,64 +2,107 @@ import type { ToolResult, ToolCallRef } from "@helix/core";
 import type { ToolRegistry } from "./ToolRegistry";
 import type { AgentEvent } from "../event/types";
 
+// ─── ExecuteResult ────────────────────────────────────────────────────────────
+
+/**
+ * Internal result from a single tool execution.
+ * Preserves rawOutput so run.ts can detect { terminate: true }.
+ */
+export interface ExecuteResult {
+  toolResult: ToolResult;
+  /** Raw value returned by tool.execute() — checked for { terminate: true }. */
+  rawOutput: unknown;
+}
+
 // ─── ToolExecutor ─────────────────────────────────────────────────────────────
 
 export class ToolExecutor {
   /**
    * Execute a single tool call.
-   * Yields tool_execution_start and tool_execution_end events.
-   * Never throws — errors are captured into ToolResult.isError.
+   *
+   * BUG FIX #1 (afterToolCall timing):
+   * Yields ONLY tool_execution_start.
+   * Does NOT yield tool_execution_end — that is the caller's responsibility,
+   * so afterToolCall can run between execution and the end event (matching pi).
+   *
+   * Never throws — errors are captured into ExecuteResult.toolResult.isError.
    */
   async *execute(
     call: ToolCallRef,
     registry: ToolRegistry,
     signal?: AbortSignal
-  ): AsyncGenerator<AgentEvent, ToolResult> {
-    yield { type: "tool_execution_start", toolCallId: call.toolCallId, name: call.name, args: call.args };
+  ): AsyncGenerator<AgentEvent, ExecuteResult> {
+    yield {
+      type: "tool_execution_start",
+      toolCallId: call.toolCallId,
+      name: call.name,
+      args: call.args,
+    };
 
     const start = Date.now();
 
     const tool = registry.get(call.name);
     if (!tool) {
-      const durationMs = Date.now() - start;
-      const content = `Tool not found: "${call.name}"`;
-      yield { type: "tool_execution_end", toolCallId: call.toolCallId, name: call.name, result: content, isError: true, durationMs };
-      return { toolCallId: call.toolCallId, content, isError: true, durationMs };
+      return {
+        toolResult: {
+          toolCallId: call.toolCallId,
+          content: `Tool not found: "${call.name}"`,
+          isError: true,
+          durationMs: Date.now() - start,
+        },
+        rawOutput: undefined,
+      };
     }
 
     if (signal?.aborted) {
-      const durationMs = Date.now() - start;
-      const content = "Tool execution aborted";
-      yield { type: "tool_execution_end", toolCallId: call.toolCallId, name: call.name, result: content, isError: true, durationMs };
-      return { toolCallId: call.toolCallId, content, isError: true, durationMs };
+      return {
+        toolResult: {
+          toolCallId: call.toolCallId,
+          content: "Tool execution aborted",
+          isError: true,
+          durationMs: Date.now() - start,
+        },
+        rawOutput: undefined,
+      };
     }
 
     try {
-      const output = await tool.execute(call.args);
-      const content = typeof output === "string" ? output : JSON.stringify(output);
-      const durationMs = Date.now() - start;
-      yield { type: "tool_execution_end", toolCallId: call.toolCallId, name: call.name, result: output, isError: false, durationMs };
-      return { toolCallId: call.toolCallId, content, isError: false, durationMs };
+      const rawOutput = await tool.execute(call.args);
+      const content =
+        typeof rawOutput === "string" ? rawOutput : JSON.stringify(rawOutput);
+      return {
+        toolResult: {
+          toolCallId: call.toolCallId,
+          content,
+          isError: false,
+          durationMs: Date.now() - start,
+        },
+        rawOutput,
+      };
     } catch (err) {
-      const content = err instanceof Error ? err.message : String(err);
-      const durationMs = Date.now() - start;
-      yield { type: "tool_execution_end", toolCallId: call.toolCallId, name: call.name, result: content, isError: true, durationMs };
-      return { toolCallId: call.toolCallId, content, isError: true, durationMs };
+      return {
+        toolResult: {
+          toolCallId: call.toolCallId,
+          content: err instanceof Error ? err.message : String(err),
+          isError: true,
+          durationMs: Date.now() - start,
+        },
+        rawOutput: undefined,
+      };
     }
   }
 
   /**
-   * Execute multiple tool calls, yielding events for each.
-   * parallel (default): all calls run concurrently.
-   * sequential: calls run one after another.
-   * If any tool declares executionMode "sequential", the whole batch is sequential.
+   * Execute multiple tool calls, yielding tool_execution_start events.
+   * parallel (default) or sequential. Falls back to sequential if any tool
+   * declares executionMode: "sequential".
    */
   async *executeAll(
     calls: ToolCallRef[],
     registry: ToolRegistry,
     signal?: AbortSignal,
     batchMode: "parallel" | "sequential" = "parallel"
-  ): AsyncGenerator<AgentEvent, ToolResult[]> {
+  ): AsyncGenerator<AgentEvent, ExecuteResult[]> {
     if (calls.length === 0) return [];
 
     const hasSequential = calls.some(
@@ -68,7 +111,7 @@ export class ToolExecutor {
     const mode = hasSequential ? "sequential" : batchMode;
 
     if (mode === "sequential") {
-      const results: ToolResult[] = [];
+      const results: ExecuteResult[] = [];
       for (const call of calls) {
         const gen = this.execute(call, registry, signal);
         let next = await gen.next();
@@ -81,34 +124,23 @@ export class ToolExecutor {
       return results;
     }
 
-    // Parallel: run all generators concurrently, merge events in completion order
-    const results: ToolResult[] = new Array(calls.length);
-    const generators = calls.map((call, i) => ({ i, gen: this.execute(call, registry, signal) }));
+    // Parallel: run all concurrently, collect start events and results
+    const startEvents: AgentEvent[] = [];
+    const results: ExecuteResult[] = new Array(calls.length);
 
-    // Collect all events and results via Promise.all over the generators
-    // We need to drain each generator and interleave events
-    const eventQueues: AgentEvent[][] = calls.map(() => []);
-    const resultPromises = generators.map(async ({ i, gen }) => {
-      let next = await gen.next();
-      while (!next.done) {
-        eventQueues[i]!.push(next.value);
-        next = await gen.next();
-      }
-      results[i] = next.value;
-    });
+    await Promise.all(
+      calls.map(async (call, i) => {
+        const gen = this.execute(call, registry, signal);
+        let next = await gen.next();
+        while (!next.done) {
+          startEvents.push(next.value);
+          next = await gen.next();
+        }
+        results[i] = next.value;
+      })
+    );
 
-    // Yield events as they arrive using a merge approach
-    // For simplicity: run all in parallel, collect results, then yield all events
-    // (events arrive in parallel order, which is fine for UI)
-    await Promise.all(resultPromises);
-
-    // Yield all collected events (interleaved by tool completion order)
-    for (const queue of eventQueues) {
-      for (const event of queue) {
-        yield event;
-      }
-    }
-
+    for (const event of startEvents) yield event;
     return results;
   }
 }
