@@ -1,4 +1,4 @@
-import type { AgentContext, AgentMessage, ModelAdapter, ToolDef } from "@helix/core";
+import type { AgentContext, AgentMessage, ModelAdapter, ToolDef, ContentPart } from "@helix/core";
 import type { AgentEvent } from "../event/types";
 import type { AgentLoopConfig, StreamFn } from "../loop/index";
 import { agentLoop, agentLoopContinue } from "../loop/index";
@@ -117,7 +117,7 @@ export class Agent {
    * With steeringMode "all":
    *   Runs immediately regardless of other in-flight prompts.
    */
-  async prompt(input: string, opts?: { signal?: AbortSignal }): Promise<void> {
+  async prompt(input: string | ContentPart[], opts?: { signal?: AbortSignal }): Promise<void> {
     if (this.steeringMode === "one-at-a-time") {
       // Chain onto the queue — each prompt waits for the previous one
       this.promptQueue = this.promptQueue.then(() =>
@@ -129,7 +129,7 @@ export class Agent {
   }
 
   private async _runPrompt(
-    input: string,
+    input: string | ContentPart[],
     opts?: { signal?: AbortSignal }
   ): Promise<void> {
     const userMsg: AgentMessage = {

@@ -1,4 +1,5 @@
-import type { ToolDef, AgentMessage } from "@helix/core";
+import type { ToolDef, AgentMessage, ContentPart } from "@helix/core";
+import { getContentText } from "@helix/core";
 import type { AgentEvent } from "../event";
 
 export interface SubagentToolOpts {
@@ -28,7 +29,7 @@ export interface SubagentToolOpts {
  * Matches Agent class API — no special setup needed.
  */
 export interface SubagentInterface {
-  prompt(input: string, opts?: { signal?: AbortSignal }): Promise<void>;
+  prompt(input: string | ContentPart[], opts?: { signal?: AbortSignal }): Promise<void>;
   subscribe(handler: (e: AgentEvent) => void): () => void;
   getMessages(): AgentMessage[];
   clearMessages(): void;
@@ -105,11 +106,11 @@ export function createSubagentTool(opts: SubagentToolOpts): ToolDef {
       const messages = opts.agent.getMessages();
       const lastAssistant = [...messages]
         .reverse()
-        .find((m) => m.role === "assistant" && m.content.trim().length > 0);
+        .find((m) => m.role === "assistant" && getContentText(m.content).trim().length > 0);
 
       return {
         status: "completed",
-        result: lastAssistant?.content ?? "(sub-agent produced no text response)",
+        result: lastAssistant ? getContentText(lastAssistant.content) : "(sub-agent produced no text response)",
         messageCount: messages.length,
       };
     },

@@ -5,7 +5,7 @@
  *   pnpm dev                  # 运行所有示例
  *   pnpm dev -- basics        # 运行指定示例
  *
- * 6 个 case 按功能领域分类：
+ * 7 个 case 按功能领域分类：
  *   - basics    : Model + Agent 入门（流式、多轮、事件、agentLoop 低层）
  *   - tools     : Tool 系统（调用、执行模式、错误、钩子）
  *   - context   : 消息转换 & 上下文压缩
@@ -20,6 +20,7 @@ import { context } from "./cases/03-context";
 import { control } from "./cases/04-control";
 import { subagent } from "./cases/05-subagent";
 import { session } from "./cases/06-session";
+import { multimodal } from "./cases/07-multimodal";
 
 type Case = {
   name: string;
@@ -28,12 +29,13 @@ type Case = {
 };
 
 const cases: Case[] = [
-  { name: "basics", description: "Model + Agent 入门（Model 流式、多轮、事件、agentLoop 低层）", run: basics },
+  { name: "basics", description: "Model + Agent基础使用（Model 流式、多轮、事件、agentLoop 低层）", run: basics },
   { name: "tools", description: "Tool 系统（调用、parallel/sequential、错误、before/after/shouldStop 钩子）", run: tools },
   { name: "context", description: "消息转换 & 上下文压缩（convertToLlm + transformContext）", run: context },
   { name: "control", description: "流程控制（abort、steeringMode、waitForIdle、continue、streamFn、thinking）", run: control },
   { name: "subagent", description: "Sub-agent 多 agent 协作（createSubagentTool）", run: subagent },
   { name: "session", description: "Session 持久化（Memory + File）", run: session },
+  { name: "multimodal", description: "多模态支持（图片 base64，Model 流式 + Agent 高层）", run: multimodal },
 ];
 
 async function main() {

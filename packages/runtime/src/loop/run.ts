@@ -1,4 +1,5 @@
 import type { AgentContext, AgentMessage, ToolResult } from "@helix/core";
+import { getContentTokens } from "@helix/core";
 import type { AgentEvent } from "../event";
 import type { AgentLoopConfig } from "./index";
 import { ToolRegistry } from "../tool";
@@ -230,5 +231,5 @@ function defaultConvertToLlm(messages: AgentMessage[]): AgentMessage[] {
 }
 
 export function estimateTokens(messages: AgentMessage[]): number {
-  return messages.reduce((acc, m) => acc + Math.ceil(m.content.length / 4), 0);
+  return messages.reduce((acc, m) => acc + getContentTokens(m.content), 0);
 }

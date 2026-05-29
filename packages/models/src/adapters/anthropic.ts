@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ModelAdapter, AgentMessage, ToolDef, ModelChunk } from "@helix/core";
+import type { ModelAdapter, AgentMessage, ToolDef, ModelChunk, ContentPart } from "@helix/core";
+import { getContentText } from "@helix/core";
 
 export interface AnthropicCompatibleAdapterOptions {
   apiKey: string;
@@ -92,9 +93,27 @@ function splitSystemMessage(messages: AgentMessage[]): {
 } {
   const lastSystem = [...messages].reverse().find((m) => m.role === "system");
   return {
-    system: lastSystem?.content ?? null,
+    system: lastSystem ? getContentText(lastSystem.content) : null,
     conversationMessages: messages.filter((m) => m.role !== "system"),
   };
+}
+
+function convertContentPart(part: ContentPart): Anthropic.Messages.ContentBlockParam {
+  if (part.type === "text") {
+    return { type: "text", text: part.text };
+  }
+  return {
+    type: "image",
+    source: { type: "base64", media_type: part.mimeType, data: part.data },
+  };
+}
+
+function toContentBlocks(content: string | ContentPart[]): Anthropic.Messages.ContentBlockParam[] {
+  if (typeof content === "string") {
+    return content ? [{ type: "text", text: content }] : [];
+  }
+  if (content.length === 0) return [];
+  return content.map(convertContentPart);
 }
 
 function convertMessages(messages: AgentMessage[]): Anthropic.MessageParam[] {
@@ -102,12 +121,17 @@ function convertMessages(messages: AgentMessage[]): Anthropic.MessageParam[] {
   for (const m of messages) {
     switch (m.role) {
       case "user":
-        result.push({ role: "user", content: m.content });
+        if (typeof m.content === "string") {
+          result.push({ role: "user", content: m.content });
+        } else {
+          result.push({ role: "user", content: toContentBlocks(m.content) });
+        }
         break;
       case "assistant":
         if (m.toolCalls?.length) {
-          const content: Anthropic.Messages.ContentBlockParam[] = [];
-          if (m.content) content.push({ type: "text", text: m.content });
+          const content: Anthropic.Messages.ContentBlockParam[] = [
+            ...toContentBlocks(m.content),
+          ];
           for (const tc of m.toolCalls) {
             content.push({
               type: "tool_use",
@@ -117,15 +141,17 @@ function convertMessages(messages: AgentMessage[]): Anthropic.MessageParam[] {
             });
           }
           result.push({ role: "assistant", content });
-        } else {
+        } else if (typeof m.content === "string") {
           result.push({ role: "assistant", content: m.content });
+        } else {
+          result.push({ role: "assistant", content: toContentBlocks(m.content) });
         }
         break;
       case "toolResult": {
         const block: Anthropic.ToolResultBlockParam = {
           type: "tool_result",
           tool_use_id: m.toolCallId ?? "",
-          content: m.content,
+          content: getContentText(m.content),
           is_error: m.isError ?? false,
         };
         const last = result[result.length - 1];

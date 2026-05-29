@@ -8,9 +8,25 @@ export interface ToolCallRef {
   args: unknown;
 }
 
+export type ImageMediaType =
+  | "image/png"
+  | "image/jpeg"
+  | "image/gif"
+  | "image/webp";
+
+export interface ImageContent {
+  type: "image";
+  data: string;
+  mimeType: ImageMediaType;
+}
+
+export type ContentPart =
+  | { type: "text"; text: string }
+  | ImageContent;
+
 export interface AgentMessage {
   role: "user" | "assistant" | "toolResult" | "system" | (string & {});
-  content: string;
+  content: string | ContentPart[];
   timestamp: number;
 
   /**

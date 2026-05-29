@@ -1,4 +1,5 @@
 import type { AgentMessage, ModelAdapter } from "@helix/core";
+import { getContentText, getContentTokens } from "@helix/core";
 import { estimateTokens } from "../loop/run";
 
 // ─── TransformContext type ────────────────────────────────────────────────────
@@ -72,7 +73,7 @@ export function tokenCompaction(opts: {
     let cutIndex = messages.length;
 
     for (let i = messages.length - 1; i >= 0; i--) {
-      const tokens = Math.ceil(messages[i]!.content.length / 4);
+      const tokens = getContentTokens(messages[i]!.content);
       if (accumulated + tokens > keepRecentTokens) {
         cutIndex = i + 1;
         break;
@@ -126,7 +127,7 @@ export function summaryCompaction(opts: {
     let cutIndex = messages.length;
 
     for (let i = messages.length - 1; i >= 0; i--) {
-      const tokens = Math.ceil(messages[i]!.content.length / 4);
+      const tokens = getContentTokens(messages[i]!.content);
       if (accumulated + tokens > keepRecentTokens) {
         cutIndex = i + 1;
         break;
@@ -145,7 +146,7 @@ export function summaryCompaction(opts: {
       "Summarize the following conversation concisely, preserving key facts, decisions, and context needed to continue the conversation.";
 
     const conversationText = toSummarize
-      .map((m) => `[${m.role}]: ${m.content}`)
+      .map((m) => `[${m.role}]: ${getContentText(m.content)}`)
       .join("\n\n");
 
     const summaryMessages: AgentMessage[] = [

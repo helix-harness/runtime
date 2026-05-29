@@ -1,5 +1,6 @@
 import OpenAI from "openai";
-import type { ModelAdapter, AgentMessage, ToolDef, ModelChunk } from "@helix/core";
+import type { ModelAdapter, AgentMessage, ToolDef, ModelChunk, ContentPart } from "@helix/core";
+import { getContentText } from "@helix/core";
 
 export interface OpenAICompatibleAdapterOptions {
   apiKey: string;
@@ -83,21 +84,35 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
   }
 }
 
+function convertContentPart(part: ContentPart): OpenAI.Chat.ChatCompletionContentPart {
+  if (part.type === "text") {
+    return { type: "text", text: part.text };
+  }
+  // data 字段约定为纯 base64，前缀在此拼接
+  return { type: "image_url", image_url: { url: `data:${part.mimeType};base64,${part.data}` } };
+}
+
+function toUserContent(content: string | ContentPart[]): string | OpenAI.Chat.ChatCompletionContentPart[] {
+  if (typeof content === "string") return content;
+  if (content.length === 0) return "";
+  return content.map(convertContentPart);
+}
+
 function convertMessages(messages: AgentMessage[]): OpenAI.Chat.ChatCompletionMessageParam[] {
   const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
   for (const m of messages) {
     switch (m.role) {
       case "system":
-        result.push({ role: "system", content: m.content });
+        result.push({ role: "system", content: getContentText(m.content) });
         break;
       case "user":
-        result.push({ role: "user", content: m.content });
+        result.push({ role: "user", content: toUserContent(m.content) });
         break;
       case "assistant":
         if (m.toolCalls?.length) {
           result.push({
             role: "assistant",
-            content: m.content || null,
+            content: getContentText(m.content) || null,
             tool_calls: m.toolCalls.map((tc) => ({
               id: tc.toolCallId,
               type: "function" as const,
@@ -105,14 +120,14 @@ function convertMessages(messages: AgentMessage[]): OpenAI.Chat.ChatCompletionMe
             })),
           });
         } else {
-          result.push({ role: "assistant", content: m.content });
+          result.push({ role: "assistant", content: getContentText(m.content) });
         }
         break;
       case "toolResult":
         result.push({
           role: "tool" as const,
           tool_call_id: m.toolCallId ?? "",
-          content: m.content,
+          content: getContentText(m.content),
         });
         break;
       default:
