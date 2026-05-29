@@ -1,7 +1,9 @@
-import type { AgentContext, AgentMessage, ModelAdapter, ToolDef, ContentPart } from "@helix/core";
+import type { AgentContext, AgentMessage, ModelAdapter, ToolDef, ContentPart, Skill } from "@helix/core";
 import type { AgentEvent } from "../event/types";
 import type { AgentLoopConfig, StreamFn } from "../loop/index";
 import { agentLoop, agentLoopContinue } from "../loop/index";
+import { SkillRegistry } from "../skill/SkillRegistry";
+import { formatSkillsForPrompt } from "../skill/prompt";
 
 // ─── SteeringMode ─────────────────────────────────────────────────────────────
 
@@ -24,6 +26,8 @@ export interface AgentOptions extends Omit<AgentLoopConfig, "model" | "signal"> 
   model: ModelAdapter;
   systemPrompt?: string;
   tools?: ToolDef[];
+  /** Skills available for progressive disclosure and programmatic invocation. */
+  skills?: Skill[];
   /**
    * How to handle concurrent prompt() calls.
    * @default "one-at-a-time"
@@ -42,12 +46,14 @@ export interface AgentOptions extends Omit<AgentLoopConfig, "model" | "signal"> 
  * - steeringMode: serialize or allow concurrent prompts
  * - waitForIdle(): wait for all async subscribers to complete
  * - abort(): cancel the current loop
+ * - Skills: progressive disclosure via system prompt, programmatic invocation via invokeSkill()
  *
  * @example
  * const agent = new Agent({
  *   model: getModel({ model: "gpt-4o", apiKey: "..." }),
  *   systemPrompt: "You are helpful.",
  *   tools: [myTool],
+ *   skills: [codeReviewSkill],
  *   steeringMode: "one-at-a-time",
  * })
  *
@@ -65,6 +71,9 @@ export class Agent {
   private readonly loopConfig: Omit<AgentLoopConfig, "signal">;
   private readonly steeringMode: SteeringMode;
 
+  // ── Skills (read-only after construction) ───────────────────────────────────
+  private readonly skillRegistry: SkillRegistry;
+
   // ── steeringMode: one-at-a-time queue ────────────────────────────────────
   private promptQueue: Promise<void> = Promise.resolve();
 
@@ -72,14 +81,29 @@ export class Agent {
   private idlePromises: Set<Promise<void>> = new Set();
 
   constructor(private readonly opts: AgentOptions) {
+    this.steeringMode = opts.steeringMode ?? "one-at-a-time";
+
+    // ── Initialize skills ─────────────────────────────────────────────────────
+    this.skillRegistry = new SkillRegistry();
+    if (opts.skills) {
+      this.skillRegistry.registerAll(opts.skills);
+    }
+
+    // ── Build system prompt ───────────────────────────────────────────────────
+    let systemPrompt = opts.systemPrompt ?? "";
+    const skills = this.skillRegistry.list();
+    if (skills.length > 0) {
+      systemPrompt += formatSkillsForPrompt(skills);
+    }
+
+    // ── Build context ─────────────────────────────────────────────────────────
     this.context = {
-      systemPrompt: opts.systemPrompt ?? "",
+      systemPrompt,
       messages: [],
       tools: opts.tools ?? [],
     };
 
-    this.steeringMode = opts.steeringMode ?? "one-at-a-time";
-
+    // ── Build loop config (immutable after construction) ──────────────────────
     this.loopConfig = {
       model: opts.model,
       streamFn: opts.streamFn,
@@ -104,6 +128,38 @@ export class Agent {
     return () => {
       this.handlers = this.handlers.filter((h) => h !== handler);
     };
+  }
+
+  // ── Skill API ─────────────────────────────────────────────────────────────
+
+  /**
+   * Programmatically invoke a skill by name.
+   * Formats the skill content as a <skill> XML block and runs it as a user message.
+   * Matches pi's AgentHarness.skill() behavior.
+   */
+  async invokeSkill(name: string, args?: string): Promise<void> {
+    const skill = this.skillRegistry.get(name);
+    if (!skill) {
+      throw new Error(`[helix/runtime] Agent.invokeSkill(): unknown skill "${name}"`);
+    }
+
+    const skillBlock = formatSkillInvocation(skill);
+    const input = args ? `${skillBlock}\n\n${args}` : skillBlock;
+    return this.prompt(input);
+  }
+
+  /**
+   * List all registered skills.
+   */
+  listSkills(): Skill[] {
+    return this.skillRegistry.list();
+  }
+
+  /**
+   * Get a skill by name.
+   */
+  getSkill(name: string): Skill | undefined {
+    return this.skillRegistry.get(name);
   }
 
   // ── Core API ──────────────────────────────────────────────────────────────
@@ -269,4 +325,20 @@ export class Agent {
   getContext(): Readonly<AgentContext> {
     return this.context;
   }
+}
+
+// ─── Skill Invocation Formatting ──────────────────────────────────────────────
+
+/**
+ * Format a skill invocation as a <skill> XML block for user message injection.
+ * Matches pi's formatSkillInvocation() behavior.
+ */
+function formatSkillInvocation(skill: Skill): string {
+  return `<skill name="${skill.name}" location="${skill.filePath}">\nReferences are relative to ${dirname(skill.filePath)}.\n\n${skill.content}\n</skill>`;
+}
+
+function dirname(path: string): string {
+  const normalized = path.replace(/\/+$/, "");
+  const slashIndex = normalized.lastIndexOf("/");
+  return slashIndex <= 0 ? "/" : normalized.slice(0, slashIndex);
 }
