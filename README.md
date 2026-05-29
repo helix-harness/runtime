@@ -2,7 +2,7 @@
 
 # Helix Runtime
 
-A TypeScript-native, runtime-first harness SDK for building AI agents.
+TypeScript-native, runtime-first Harness SDK for building AI Agents.
 
 **Agent = Model + Harness**
 
@@ -22,12 +22,13 @@ You bring the model and the tools. Helix Runtime runs the loop.
 ## Quick Start
 
 ```bash
-pnpm add @helix/runtime @helix/models @helix/core
+pnpm add @helix/runtime @helix/models @helix/core @helix/tools
 ```
 
 ```typescript
 import { Agent } from "@helix/runtime";
 import { getModel } from "@helix/models";
+import { bashTool, readFileTool } from "@helix/tools";
 
 const agent = new Agent({
   model: getModel({
@@ -35,7 +36,7 @@ const agent = new Agent({
     apiKey: process.env.OPENAI_API_KEY,
   }),
   systemPrompt: "You are a helpful assistant.",
-  tools: [myTool],
+  tools: [bashTool(), readFileTool()],
 });
 
 // Observe all events
@@ -46,7 +47,7 @@ agent.subscribe((event) => {
 });
 
 // Run
-await agent.prompt("Hello!");
+await agent.prompt("List files in the current directory");
 ```
 
 ### Stateless Loop (Low-level)
@@ -66,6 +67,23 @@ for await (const event of agentLoop([userMsg], context, { model })) {
 }
 ```
 
+## Packages
+
+| Package | Description |
+|---|---|
+| `@helix/core` | Zero-dependency shared types: `AgentMessage`, `ToolDef`, `ModelAdapter`, `AgentContext`, `Skill` |
+| `@helix/runtime` | Harness core: `Agent`, `agentLoop`, `ToolRegistry`, `ToolExecutor`, Compaction, Session, Skill |
+| `@helix/models` | LLM adapters: OpenAI-compatible, Anthropic-compatible |
+| `@helix/tools` | Built-in tools: `readFileTool`, `writeFileTool`, `globTool`, `bashTool` |
+
+```text
+@helix/core        ← Zero-dependency shared types
+      ↑         ↑         ↑
+@helix/runtime  @helix/models  @helix/tools   ← Each depends on core
+      ↑
+Your Agent         ← Consumes the SDK
+```
+
 ## Core Concepts
 
 ### Agent Class
@@ -73,6 +91,8 @@ for await (const event of agentLoop([userMsg], context, { model })) {
 A stateful wrapper that manages message accumulation, abort control, and event subscription.
 
 ```typescript
+import { Agent } from "@helix/runtime";
+
 const agent = new Agent({
   model,                              // ModelAdapter
   systemPrompt: "You are helpful.",   // System prompt
@@ -90,11 +110,22 @@ agent.abort();             // Cancel current run
 agent.clearMessages();     // Reset state
 ```
 
+**SteeringMode** controls concurrent prompt handling:
+
+- `"one-at-a-time"` (default) — serial queue, each `prompt()` waits for the previous to finish
+- `"all"` — concurrent execution
+
+```typescript
+const agent = new Agent({ model, steeringMode: "all" });
+```
+
 ### Tool System
 
 Tools are plain objects with a schema and an execute function:
 
 ```typescript
+import type { ToolDef } from "@helix/core";
+
 const calculator: ToolDef = {
   name: "calculator",
   description: "Evaluate a math expression",
@@ -112,6 +143,47 @@ const calculator: ToolDef = {
 ```
 
 Execution modes: `parallel` (default) or `sequential` (set `executionMode: "sequential"` on the tool).
+
+**Loop Hooks** give you control over tool execution:
+
+```typescript
+const agent = new Agent({
+  model,
+  tools: [myTool],
+  beforeToolCall: async (ctx) => {
+    console.log(`About to call: ${ctx.name}`);
+    return "allow"; // or "block" to skip
+  },
+  afterToolCall: async (ctx) => {
+    console.log(`Called ${ctx.name} in ${ctx.durationMs}ms`);
+  },
+  shouldStopAfterTurn: async (ctx) => {
+    return ctx.turnCount >= 5; // Stop after 5 turns
+  },
+});
+```
+
+A tool can signal loop termination by returning `{ terminate: true }`.
+
+### Built-in Tools
+
+`@helix/tools` provides ready-to-use tools with safety features:
+
+```typescript
+import { readFileTool, writeFileTool, globTool, bashTool } from "@helix/tools";
+
+const tools = [
+  readFileTool({ rootDir: "./project", maxChars: 50000 }),
+  writeFileTool({ rootDir: "./project", createDirs: true }),
+  globTool({ rootDir: "./project", maxResults: 100 }),
+  bashTool({
+    cwd: "./project",
+    timeoutMs: 30000,
+    allowedCommands: ["ls", "cat", "grep"],
+    blockedPatterns: ["rm -rf"],
+  }),
+];
+```
 
 ### Sub-agent
 
@@ -137,6 +209,29 @@ const orchestrator = new Agent({
     }),
   ],
 });
+```
+
+### Multimodal
+
+Both low-level and high-level APIs support image content:
+
+```typescript
+import { imagePart } from "@helix/core";
+
+// Low-level: pass ContentPart[] to agentLoop
+const msg = {
+  role: "user",
+  content: [
+    textPart("What's in this image?"),
+    imagePart(base64Data, "image/png"),
+  ],
+};
+
+// High-level: Agent.prompt accepts ContentPart[]
+await agent.prompt([
+  textPart("Describe this"),
+  imagePart(imageBuffer, "image/jpeg"),
+]);
 ```
 
 ### Context Compaction
@@ -194,6 +289,20 @@ await store.save({ ...session, messages });
 const loaded = await store.get(session.id);
 ```
 
+### Skill System
+
+Skills are reusable prompt templates loaded from YAML/JSON files:
+
+```typescript
+import { loadSkills, formatSkillsForPrompt } from "@helix/runtime";
+
+const { skills, diagnostics } = await loadSkills({ dirs: ["./skills"] });
+const agent = new Agent({ model, skills });
+
+// Invoke a skill programmatically
+await agent.invokeSkill("code-review", { file: "src/index.ts" });
+```
+
 ## Event System
 
 `agentLoop` returns `AsyncIterable<AgentEvent>`. Every behavior is observable:
@@ -201,38 +310,19 @@ const loaded = await store.get(session.id);
 ```
 agent_start
   turn_start
-    message_start / message_end        (user)
+    message_start / message_end        (user message)
     message_start
       message_update (streaming delta)
-    message_end                        (assistant)
-    tool_execution_start → tool_execution_end  (if tool call)
+      thinking_update (extended thinking)
+    message_end                        (assistant reply)
+    tool_execution_start → tool_execution_end  (tool call)
+    context_compacted                  (when compaction triggers)
   turn_end
 agent_end
+error                                (on failure)
 ```
 
-## Architecture
-
-```
-@helix/core        ← Zero-dependency shared types (AgentMessage, ToolDef, ModelAdapter)
-      ↑
-@helix/runtime     ← Harness core (Agent, agentLoop, tools, compaction, session)
-      ↑
-@helix/models      ← LLM adapters (OpenAI-compatible, Anthropic-compatible)
-      ↑
-Your agent         ← Consumes the SDK
-```
-
-## Monorepo Structure
-
-```text
-packages/
-├── core/          @helix/core     — Shared types (zero dependencies)
-├── runtime/       @helix/runtime  — Harness core
-└── models/        @helix/models   — LLM adapters
-
-apps/
-└── playground/    Development & testing playground
-```
+13 event types covering the full agent lifecycle.
 
 ## Development
 
@@ -245,12 +335,25 @@ pnpm typecheck     # Type checking
 pnpm lint          # Lint
 ```
 
-Run a specific playground case:
+Run playground cases:
 
 ```bash
 cd apps/playground
-pnpm dev -- model-basic
+pnpm dev -- basics     # Model streaming, Agent basics, agentLoop
+pnpm dev -- tools      # Tool execution, hooks, parallel/sequential
+pnpm dev -- context    # Compaction strategies
+pnpm dev -- control    # AbortSignal, steering mode, thinking level
+pnpm dev -- subagent   # Multi-agent orchestration
+pnpm dev -- session    # Session persistence
+pnpm dev -- multimodal # Image support
 ```
+
+## Tech Stack
+
+- **Language**: TypeScript 6, ESNext modules
+- **Build**: tsup (ESM + DTS)
+- **Orchestration**: Turborepo
+- **Package Manager**: pnpm 10
 
 ## License
 

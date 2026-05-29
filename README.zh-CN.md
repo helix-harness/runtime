@@ -22,12 +22,13 @@ Helix Runtime 提供 Agent 的执行层 —— 循环控制、工具编排、事
 ## 快速开始
 
 ```bash
-pnpm add @helix/runtime @helix/models @helix/core
+pnpm add @helix/runtime @helix/models @helix/core @helix/tools
 ```
 
 ```typescript
 import { Agent } from "@helix/runtime";
 import { getModel } from "@helix/models";
+import { bashTool, readFileTool } from "@helix/tools";
 
 const agent = new Agent({
   model: getModel({
@@ -35,7 +36,7 @@ const agent = new Agent({
     apiKey: process.env.OPENAI_API_KEY,
   }),
   systemPrompt: "You are a helpful assistant.",
-  tools: [myTool],
+  tools: [bashTool(), readFileTool()],
 });
 
 // 订阅所有事件
@@ -46,7 +47,7 @@ agent.subscribe((event) => {
 });
 
 // 运行
-await agent.prompt("Hello!");
+await agent.prompt("列出当前目录的文件");
 ```
 
 ### 无状态循环（低层 API）
@@ -66,6 +67,23 @@ for await (const event of agentLoop([userMsg], context, { model })) {
 }
 ```
 
+## 包结构
+
+| 包 | 说明 |
+|---|---|
+| `@helix/core` | 零依赖共享类型：`AgentMessage`、`ToolDef`、`ModelAdapter`、`AgentContext`、`Skill` |
+| `@helix/runtime` | Harness 核心：`Agent`、`agentLoop`、`ToolRegistry`、`ToolExecutor`、Compaction、Session、Skill |
+| `@helix/models` | LLM 适配器：OpenAI 兼容、Anthropic 兼容 |
+| `@helix/tools` | 内置工具：`readFileTool`、`writeFileTool`、`globTool`、`bashTool` |
+
+```text
+@helix/core        ← 零依赖共享类型
+      ↑         ↑         ↑
+@helix/runtime  @helix/models  @helix/tools   ← 各自依赖 core
+      ↑
+你的 Agent          ← 消费 SDK
+```
+
 ## 核心概念
 
 ### Agent 类
@@ -73,6 +91,8 @@ for await (const event of agentLoop([userMsg], context, { model })) {
 有状态封装，管理消息累积、取消控制和事件订阅。
 
 ```typescript
+import { Agent } from "@helix/runtime";
+
 const agent = new Agent({
   model,                              // ModelAdapter
   systemPrompt: "You are helpful.",   // 系统提示词
@@ -90,11 +110,22 @@ agent.abort();             // 取消当前运行
 agent.clearMessages();     // 重置状态
 ```
 
+**SteeringMode** 控制并发 prompt 处理方式：
+
+- `"one-at-a-time"`（默认）—— 串行队列，每个 `prompt()` 等待上一个完成
+- `"all"` —— 并发执行
+
+```typescript
+const agent = new Agent({ model, steeringMode: "all" });
+```
+
 ### Tool 系统
 
 工具是带有 schema 和 execute 函数的普通对象：
 
 ```typescript
+import type { ToolDef } from "@helix/core";
+
 const calculator: ToolDef = {
   name: "calculator",
   description: "计算数学表达式",
@@ -112,6 +143,47 @@ const calculator: ToolDef = {
 ```
 
 执行模式：`parallel`（默认）或 `sequential`（在 tool 上设置 `executionMode: "sequential"`）。
+
+**循环钩子**让你精细控制工具执行：
+
+```typescript
+const agent = new Agent({
+  model,
+  tools: [myTool],
+  beforeToolCall: async (ctx) => {
+    console.log(`即将调用: ${ctx.name}`);
+    return "allow"; // 或 "block" 跳过执行
+  },
+  afterToolCall: async (ctx) => {
+    console.log(`调用 ${ctx.name} 耗时 ${ctx.durationMs}ms`);
+  },
+  shouldStopAfterTurn: async (ctx) => {
+    return ctx.turnCount >= 5; // 5 轮后停止
+  },
+});
+```
+
+工具可以通过返回 `{ terminate: true }` 来终止循环。
+
+### 内置工具
+
+`@helix/tools` 提供开箱即用的工具，内置安全防护：
+
+```typescript
+import { readFileTool, writeFileTool, globTool, bashTool } from "@helix/tools";
+
+const tools = [
+  readFileTool({ rootDir: "./project", maxChars: 50000 }),
+  writeFileTool({ rootDir: "./project", createDirs: true }),
+  globTool({ rootDir: "./project", maxResults: 100 }),
+  bashTool({
+    cwd: "./project",
+    timeoutMs: 30000,
+    allowedCommands: ["ls", "cat", "grep"],
+    blockedPatterns: ["rm -rf"],
+  }),
+];
+```
 
 ### Sub-agent
 
@@ -137,6 +209,29 @@ const orchestrator = new Agent({
     }),
   ],
 });
+```
+
+### 多模态
+
+低层和高层 API 均支持图片内容：
+
+```typescript
+import { imagePart, textPart } from "@helix/core";
+
+// 低层：传 ContentPart[] 给 agentLoop
+const msg = {
+  role: "user",
+  content: [
+    textPart("这张图是什么？"),
+    imagePart(base64Data, "image/png"),
+  ],
+};
+
+// 高层：Agent.prompt 接受 ContentPart[]
+await agent.prompt([
+  textPart("描述一下这个"),
+  imagePart(imageBuffer, "image/jpeg"),
+]);
 ```
 
 ### 上下文压缩
@@ -194,6 +289,20 @@ await store.save({ ...session, messages });
 const loaded = await store.get(session.id);
 ```
 
+### Skill 系统
+
+Skill 是从 YAML/JSON 文件加载的可复用提示词模板：
+
+```typescript
+import { loadSkills, formatSkillsForPrompt } from "@helix/runtime";
+
+const { skills, diagnostics } = await loadSkills({ dirs: ["./skills"] });
+const agent = new Agent({ model, skills });
+
+// 编程式调用 skill
+await agent.invokeSkill("code-review", { file: "src/index.ts" });
+```
+
 ## 事件系统
 
 `agentLoop` 返回 `AsyncIterable<AgentEvent>`，所有行为均可观察：
@@ -204,35 +313,16 @@ agent_start
     message_start / message_end        (用户消息)
     message_start
       message_update (流式 delta)
+      thinking_update (扩展思考)
     message_end                        (助手回复)
     tool_execution_start → tool_execution_end  (工具调用)
+    context_compacted                  (上下文压缩触发时)
   turn_end
 agent_end
+error                                (错误发生时)
 ```
 
-## 架构
-
-```
-@helix/core        ← 零依赖共享类型（AgentMessage, ToolDef, ModelAdapter）
-      ↑
-@helix/runtime     ← Harness 核心（Agent, agentLoop, tools, compaction, session）
-      ↑
-@helix/models      ← LLM 适配器（OpenAI 兼容, Anthropic 兼容）
-      ↑
-你的 Agent          ← 消费 SDK
-```
-
-## Monorepo 结构
-
-```text
-packages/
-├── core/          @helix/core     — 共享类型（零依赖）
-├── runtime/       @helix/runtime  — Harness 核心
-└── models/        @helix/models   — LLM 适配器
-
-apps/
-└── playground/    开发测试场
-```
+13 种事件类型，覆盖完整的 Agent 生命周期。
 
 ## 开发
 
@@ -245,12 +335,25 @@ pnpm typecheck     # 类型检查
 pnpm lint          # 代码检查
 ```
 
-运行指定的 playground case：
+运行 playground 示例：
 
 ```bash
 cd apps/playground
-pnpm dev -- model-basic
+pnpm dev -- basics     # Model 流式调用、Agent 基础、agentLoop
+pnpm dev -- tools      # 工具执行、钩子、并行/串行
+pnpm dev -- context    # 上下文压缩策略
+pnpm dev -- control    # AbortSignal、steering mode、thinking level
+pnpm dev -- subagent   # Multi-agent 编排
+pnpm dev -- session    # Session 持久化
+pnpm dev -- multimodal # 图片支持
 ```
+
+## 技术栈
+
+- **语言**: TypeScript 6, ESNext modules
+- **构建**: tsup (ESM + DTS)
+- **编排**: Turborepo
+- **包管理**: pnpm 10
 
 ## License
 

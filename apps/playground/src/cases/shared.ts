@@ -20,7 +20,7 @@ export function createModel(options: ModelOptions = {}): ModelAdapter {
   }
 
   return getModel({
-    provider: options.provider ?? "openai-compatible",
+    provider: options.provider ?? "anthropic-compatible",
     model: options.model ?? process.env.LLM_MODEL_ID ?? "gpt-4o",
     apiKey: process.env.LLM_API_KEY,
     baseURL: process.env.LLM_BASE_URL,
