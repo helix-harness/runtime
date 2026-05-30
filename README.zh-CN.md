@@ -2,22 +2,26 @@
 
 # Helix Runtime
 
-TypeScript 原生、Runtime First 的 AI Agent Harness SDK。
+**Helix Runtime 是什么？**
 
-**Agent = Model + Harness**
+一个 TypeScript Agent 执行层 SDK。它负责 Agent 运行时的所有脏活——多轮循环、Tool 编排、事件流、上下文剪枝——你只需要选模型、写 Tool、定义业务逻辑。
 
-Helix Runtime 提供 Agent 的执行层 —— 循环控制、工具编排、事件流、上下文管理 —— 让你专注于 Agent 做什么，而不是怎么跑。
+**它帮你做了什么？**
 
-## 为什么需要 Helix Runtime？
+- 多轮对话循环（自动处理 tool call → 再次推理的循环）
+- Tool 注册、并行/串行执行、错误处理
+- 全生命周期事件流（流式输出、tool 执行、上下文压缩全部可观察）
+- 上下文管理（slice / token / summary 三种压缩策略）
+- 取消控制（AbortSignal）
+- 子 Agent 编排（Agent 作为 Tool 嵌套）
 
-大多数 Agent 框架把"思考"和"执行"混在一起。Helix Runtime 划清了边界：
+**它能让你做什么？**
 
-| 层 | 职责 | 谁来做 |
-|---|---|---|
-| **Model（思考层）** | 推理、生成、tool call 决策 | GPT / Claude / Gemini |
-| **Harness（执行层）** | 循环控制、工具执行、状态管理、事件流 | **Helix Runtime** |
-
-你提供模型和工具，Helix Runtime 负责跑循环。
+- 快速搭建一个完整的 AI Agent，不用自己写循环控制和工具调度
+- 把任意 LLM（GPT / Claude / Gemini）接入同一个 Agent 框架，随时切换
+- 把多个 Agent 串成多 Agent 系统（一个 Agent 当另一个的 Tool）
+- 全程可观察——流式输出、Tool 调用、上下文压缩，每个环节都能订阅事件
+- 只写业务代码，不用碰执行层
 
 ## 快速开始
 

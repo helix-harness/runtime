@@ -2,22 +2,26 @@
 
 # Helix Runtime
 
-TypeScript-native, runtime-first Harness SDK for building AI Agents.
+**What is Helix Runtime?**
 
-**Agent = Model + Harness**
+A TypeScript Agent execution-layer SDK. It handles all the runtime plumbing — multi-turn loops, tool orchestration, event streaming, context pruning — so you only need to pick a model, write tools, and define business logic.
 
-Helix Runtime provides the execution layer — loop control, tool orchestration, event streaming, context management — so you can focus on what your agent does, not how it runs.
+**What does it do?**
 
-## Why Helix Runtime?
+- Multi-turn conversation loop (automatically handles tool call → re-reasoning cycles)
+- Tool registration, parallel/sequential execution, error handling
+- Full-lifecycle event streaming (streaming output, tool execution, context compaction — all observable)
+- Context management (slice / token / summary compaction strategies)
+- Cancellation control (AbortSignal)
+- Sub-agent orchestration (wrap an Agent as a Tool)
 
-Most agent frameworks blur the line between "thinking" and "doing". Helix Runtime draws a clear boundary:
+**What does it let you build?**
 
-| Layer | Responsibility | Who does it |
-|---|---|---|
-| **Model** | Reasoning, generation, tool call decisions | GPT / Claude / Gemini |
-| **Harness** | Loop control, tool execution, state management, event streaming | **Helix Runtime** |
-
-You bring the model and the tools. Helix Runtime runs the loop.
+- Spin up a complete AI Agent fast, no need to write loop control or tool scheduling yourself
+- Swap any LLM (GPT / Claude / Gemini) into the same Agent framework, switch anytime
+- Chain multiple Agents into a multi-Agent system (one Agent as another's Tool)
+- Full observability — streaming output, tool calls, context compaction, subscribe to every event
+- Write only business code, never touch the execution layer
 
 ## Quick Start
 
