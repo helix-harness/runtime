@@ -66,6 +66,12 @@ export interface StreamOpts {
   tools?: ToolDef[];
   signal?: AbortSignal;
   /**
+   * System prompt to send to the LLM.
+   * Passed as a top-level parameter (not part of messages) for providers that support it.
+   * Adapters should place this before conversation messages when building the request.
+   */
+  systemPrompt?: string;
+  /**
    * Extended thinking level. Adapters that don't support it should ignore this.
    * @default "off"
    */

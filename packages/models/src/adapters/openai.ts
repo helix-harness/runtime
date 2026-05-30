@@ -21,18 +21,24 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
 
   async *stream(
     messages: AgentMessage[],
-    opts: { tools?: ToolDef[]; signal?: AbortSignal }
+    opts: { tools?: ToolDef[]; signal?: AbortSignal; systemPrompt?: string }
   ): AsyncIterable<ModelChunk> {
     const toolCallBuffers = new Map<
       number,
       { id: string; name: string; arguments: string }
     >();
 
+    // Filter out existing system messages and prepend opts.systemPrompt if provided
+    const conversationMessages = messages.filter((m) => m.role !== "system");
+    const allMessages: AgentMessage[] = opts.systemPrompt
+      ? [{ role: "system", content: opts.systemPrompt, timestamp: 0 }, ...conversationMessages]
+      : conversationMessages;
+
     const response = await this.client.chat.completions.create(
       {
         model: this.options.model ?? "gpt-4o",
         max_tokens: this.options.maxTokens ?? 8192,
-        messages: convertMessages(messages),
+        messages: convertMessages(allMessages),
         stream: true,
         tools: opts.tools?.length ? convertTools(opts.tools) : undefined,
       },

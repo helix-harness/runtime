@@ -73,6 +73,7 @@ export async function* runAgentLoop(
         tools: registry.list(),
         signal,
         thinkingLevel,
+        systemPrompt: context.systemPrompt || undefined,
       })) {
         if (signal?.aborted) break;
 

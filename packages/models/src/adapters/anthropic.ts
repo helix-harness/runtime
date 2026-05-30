@@ -21,9 +21,11 @@ export class AnthropicCompatibleAdapter implements ModelAdapter {
 
   async *stream(
     messages: AgentMessage[],
-    opts: { tools?: ToolDef[]; signal?: AbortSignal }
+    opts: { tools?: ToolDef[]; signal?: AbortSignal; systemPrompt?: string }
   ): AsyncIterable<ModelChunk> {
-    const { system, conversationMessages } = splitSystemMessage(messages);
+    // Priority: opts.systemPrompt > system message in messages array
+    const { system: systemFromMessages, conversationMessages } = splitSystemMessage(messages);
+    const systemPrompt = opts.systemPrompt ?? systemFromMessages ?? undefined;
 
     const toolBlocks = new Map<
       number,
@@ -34,7 +36,7 @@ export class AnthropicCompatibleAdapter implements ModelAdapter {
       {
         model: this.options.model ?? "claude-sonnet-4-20250514",
         max_tokens: this.options.maxTokens ?? 8192,
-        system: system ?? undefined,
+        system: systemPrompt,
         messages: convertMessages(conversationMessages),
         tools: opts.tools?.length ? convertTools(opts.tools) : undefined,
       },
