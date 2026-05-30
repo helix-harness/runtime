@@ -355,6 +355,10 @@ pnpm dev -- multimodal # Image support
 - **Orchestration**: Turborepo
 - **Package Manager**: pnpm 10
 
+## Acknowledgments
+
+Helix Runtime is inspired by and references [pi](https://github.com/earendil-works/pi) — an open-source agent harness project by [earendil-works](https://github.com/earendil-works). Pi's architecture of separating agent runtime from model layer directly influenced Helix's design philosophy. Huge thanks to the pi team for pioneering this approach.
+
 ## License
 
 MIT

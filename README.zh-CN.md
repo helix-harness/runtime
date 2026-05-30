@@ -355,6 +355,10 @@ pnpm dev -- multimodal # 图片支持
 - **编排**: Turborepo
 - **包管理**: pnpm 10
 
+## 致敬
+
+Helix Runtime 的设计参考了 [pi](https://github.com/earendil-works/pi) —— 由 [earendil-works](https://github.com/earendil-works) 开发的开源 Agent Harness 项目。pi 将 Agent Runtime 与 Model 层分离的架构思路，直接影响了 Helix 的设计理念。感谢 pi 团队在这条路上的探索。
+
 ## License
 
 MIT
