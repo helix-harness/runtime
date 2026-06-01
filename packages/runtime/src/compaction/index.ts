@@ -88,13 +88,101 @@ export function tokenCompaction(opts: {
 
 // ─── summaryCompaction ────────────────────────────────────────────────────────
 
+const SUMMARY_MARKER = "[Conversation summary";
+
+function extractPreviousSummary(messages: AgentMessage[]): string | null {
+  const first = messages[0];
+  if (first?.role !== "system") return null;
+  const text = getContentText(first.content);
+  if (!text.startsWith(SUMMARY_MARKER)) return null;
+  const idx = text.indexOf("\n\n");
+  return idx >= 0 ? text.slice(idx + 2) : null;
+}
+
+const SUMMARIZATION_SYSTEM_PROMPT = `你是一个上下文摘要助手。你的任务是按照指定格式生成结构化摘要。
+
+不要继续对话。不要回答对话中的任何问题。只输出结构化摘要。`;
+
+const SUMMARY_INSTRUCTIONS = `上述消息是一段需要总结的对话。请创建一份结构化的上下文检查点摘要，供其他 LLM 继续工作使用。
+
+请严格按照以下格式输出：
+
+## 目标
+[用户想要完成什么？]
+
+## 约束与偏好
+- [用户提到的任何约束、偏好或要求]
+- [如果没有则写 "(无)"]
+
+## 进度
+### 已完成
+- [x] [已完成的任务/更改]
+
+### 进行中
+- [ ] [当前工作]
+
+### 阻塞
+- [阻碍进度的问题]
+
+## 关键决策
+- **[决策]**: [简要理由]
+
+## 下一步
+1. [接下来应该做什么，按顺序列出]
+
+## 关键上下文
+- [继续工作所需的数据、示例或引用]
+- [如果不适用则写 "(无)"]
+
+保持每个部分简洁。保留精确的文件路径、函数名和错误信息。`;
+
+const UPDATE_INSTRUCTIONS = `上述消息是新对话消息，需要合并到 <previous-summary> 标签中提供的现有摘要中。
+
+使用新信息更新现有结构化摘要。规则：
+- 保留现有摘要中的所有信息
+- 添加新消息中的进度、决策和上下文
+- 更新进度部分：将已完成的项目从"进行中"移到"已完成"
+- 根据已完成的内容更新"下一步"
+- 保留精确的文件路径、函数名和错误信息
+- 如果某些内容不再相关，可以移除
+
+请严格按照以下格式输出：
+
+## 目标
+[保留现有目标，如果任务扩展则添加新目标]
+
+## 约束与偏好
+- [保留现有内容，添加新发现的约束]
+
+## 进度
+### 已完成
+- [x] [包含之前已完成的项目和新完成的项目]
+
+### 进行中
+- [ ] [当前工作 - 根据进度更新]
+
+### 阻塞
+- [当前阻塞项 - 如果已解决则移除]
+
+## 关键决策
+- **[决策]**: [简要理由]（保留所有之前的决策，添加新的）
+
+## 下一步
+1. [根据当前状态更新]
+
+## 关键上下文
+- [保留重要上下文，如有需要则添加]
+
+保持每个部分简洁。保留精确的文件路径、函数名和错误信息。`;
+
 /**
  * LLM-based summary compaction.
  * When tokens exceed the threshold, uses an LLM call to summarize older messages,
  * then replaces them with a single system message containing the summary.
  * Recent messages (keepRecentTokens worth) are kept verbatim.
  *
- * More expensive than slice/token compaction but preserves semantic content.
+ * Supports incremental updates: when a previous compaction summary exists,
+ * it is passed to the LLM as context for merging rather than summarizing from scratch.
  *
  * @example
  * const agent = new Agent({
@@ -112,8 +200,10 @@ export function summaryCompaction(opts: {
   keepRecentTokens?: number;
   /** Only compact when total tokens exceed this. Default: keepRecentTokens * 1.5. */
   triggerAtTokens?: number;
-  /** Custom instructions to focus the summary. */
+  /** Custom instructions for the initial summary (first compaction). Default: structured format. */
   summaryInstructions?: string;
+  /** Custom instructions for incremental update (subsequent compactions). */
+  updateInstructions?: string;
 }): TransformContextFn {
   const keepRecentTokens = opts.keepRecentTokens ?? 20_000;
   const triggerAtTokens = opts.triggerAtTokens ?? Math.floor(keepRecentTokens * 1.5);
@@ -141,24 +231,41 @@ export function summaryCompaction(opts: {
 
     if (toSummarize.length === 0) return messages;
 
-    // Generate summary via LLM
-    const summaryInstructions = opts.summaryInstructions ??
-      "Summarize the following conversation concisely, preserving key facts, decisions, and context needed to continue the conversation.";
+    // Check for previous compaction summary (incremental update)
+    const previousSummary = extractPreviousSummary(messages);
 
-    const conversationText = toSummarize
+    // Filter out old summary message to avoid duplication
+    const messagesToSummarize = previousSummary
+      ? toSummarize.filter(m => !(m.role === "system" && getContentText(m.content).startsWith(SUMMARY_MARKER)))
+      : toSummarize;
+
+    const conversationText = messagesToSummarize
       .map((m) => `[${m.role}]: ${getContentText(m.content)}`)
       .join("\n\n");
 
+    let prompt: string;
+    if (previousSummary) {
+      // Incremental update: merge new messages into existing summary
+      const updateInstructions = opts.updateInstructions ?? UPDATE_INSTRUCTIONS;
+      const conversationBlock = conversationText
+        ? `<conversation>\n${conversationText}\n</conversation>\n\n`
+        : "";
+      prompt = `${conversationBlock}<previous-summary>\n${previousSummary}\n</previous-summary>\n\n${updateInstructions}`;
+    } else {
+      // First compaction: generate summary from scratch
+      const summaryInstructions = opts.summaryInstructions ?? SUMMARY_INSTRUCTIONS;
+      prompt = `<conversation>\n${conversationText}\n</conversation>\n\n${summaryInstructions}`;
+    }
+
     const summaryMessages: AgentMessage[] = [
-      {
-        role: "user",
-        content: `${summaryInstructions}\n\n---\n\n${conversationText}`,
-        timestamp: Date.now(),
-      },
+      { role: "user", content: prompt, timestamp: Date.now() },
     ];
 
     let summary = "";
-    for await (const chunk of opts.summaryModel.stream(summaryMessages, { signal })) {
+    for await (const chunk of opts.summaryModel.stream(summaryMessages, {
+      signal,
+      systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
+    })) {
       if (chunk.type === "text_delta") summary += chunk.value;
     }
 
