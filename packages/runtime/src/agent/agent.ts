@@ -1,4 +1,5 @@
 import type { AgentContext, AgentMessage, ModelAdapter, ToolDef, ContentPart, Skill } from "@helix/core";
+import type { SkillDiagnostic } from "../skill/loader";
 import type { AgentEvent } from "../event/types";
 import type { AgentLoopConfig, StreamFn } from "../loop/index";
 import { agentLoop, agentLoopContinue } from "../loop/index";
@@ -71,7 +72,7 @@ export class Agent {
   private readonly loopConfig: Omit<AgentLoopConfig, "signal">;
   private readonly steeringMode: SteeringMode;
 
-  // ── Skills (read-only after construction) ───────────────────────────────────
+  // ── Skills ────────────────────────────────────────────────────────────────────
   private readonly skillRegistry: SkillRegistry;
 
   // ── steeringMode: one-at-a-time queue ────────────────────────────────────
@@ -86,7 +87,9 @@ export class Agent {
     // ── Initialize skills ─────────────────────────────────────────────────────
     this.skillRegistry = new SkillRegistry();
     if (opts.skills) {
-      this.skillRegistry.registerAll(opts.skills);
+      for (const d of this.skillRegistry.registerAll(opts.skills)) {
+        console.warn(`[helix/runtime] Agent: skill "${d.path}" — ${d.message}`);
+      }
     }
 
     // ── Build system prompt ───────────────────────────────────────────────────
@@ -131,6 +134,14 @@ export class Agent {
   }
 
   // ── Skill API ─────────────────────────────────────────────────────────────
+
+  /**
+   * Register a skill at runtime (supports in-memory skills without filePath).
+   * Returns diagnostics for any validation issues.
+   */
+  registerSkill(skill: Skill): SkillDiagnostic[] {
+    return this.skillRegistry.register(skill);
+  }
 
   /**
    * Programmatically invoke a skill by name.
@@ -334,7 +345,11 @@ export class Agent {
  * Matches pi's formatSkillInvocation() behavior.
  */
 function formatSkillInvocation(skill: Skill): string {
-  return `<skill name="${skill.name}" location="${skill.filePath}">\nReferences are relative to ${dirname(skill.filePath)}.\n\n${skill.content}\n</skill>`;
+  const locationAttr = skill.filePath ? ` location="${skill.filePath}"` : "";
+  const referencesLine = skill.filePath
+    ? `References are relative to ${dirname(skill.filePath)}.\n\n`
+    : "";
+  return `<skill name="${skill.name}"${locationAttr}>\n${referencesLine}${skill.content}\n</skill>`;
 }
 
 function dirname(path: string): string {

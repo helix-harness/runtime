@@ -21,6 +21,7 @@ import { control } from "./cases/04-control";
 import { subagent } from "./cases/05-subagent";
 import { session } from "./cases/06-session";
 import { multimodal } from "./cases/07-multimodal";
+import { skills } from "./cases/08-skills";
 
 type Case = {
   name: string;
@@ -36,6 +37,7 @@ const cases: Case[] = [
   { name: "subagent", description: "Sub-agent 多 agent 协作（createSubagentTool）", run: subagent },
   { name: "session", description: "Session 持久化（Memory + File）", run: session },
   { name: "multimodal", description: "多模态支持（图片 base64，Model 流式 + Agent 高层）", run: multimodal },
+  { name: "skills", description: "Skill 系统（内存加载、文件加载、动态注册、验证、invokeSkill）", run: skills },
 ];
 
 async function main() {

@@ -5,6 +5,9 @@ export interface Skill {
   description: string;
   /** Skill instructions. Loaded on-demand via read tool (progressive disclosure). */
   content: string;
-  /** Absolute path to the SKILL.md file. Used by read tool for progressive disclosure. */
-  filePath: string;
+  /**
+   * Content location for progressive disclosure.
+   * File skill: absolute path. Memory skill: undefined.
+   */
+  filePath?: string;
 }

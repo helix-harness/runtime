@@ -130,17 +130,13 @@ function parseSkillFile(raw: string, filePath: string): { skill: Skill | null; d
   const name = frontmatter.name || dirName;
 
   // Validate description
-  if (!frontmatter.description || frontmatter.description.trim() === "") {
-    diagnostics.push({ type: "warning", code: "missing_description", message: "description is required", path: filePath });
-    return { skill: null, diagnostics };
+  const description = frontmatter.description ?? "";
+  const descErrors = validateDescription(description);
+  for (const error of descErrors) {
+    diagnostics.push({ type: "warning", code: "missing_description", message: error, path: filePath });
   }
-  if (frontmatter.description.length > MAX_DESCRIPTION_LENGTH) {
-    diagnostics.push({
-      type: "warning",
-      code: "missing_description",
-      message: `description exceeds ${MAX_DESCRIPTION_LENGTH} characters (${frontmatter.description.length})`,
-      path: filePath,
-    });
+  if (descErrors.some(e => e === "description is required")) {
+    return { skill: null, diagnostics };
   }
 
   // Validate name
@@ -151,7 +147,7 @@ function parseSkillFile(raw: string, filePath: string): { skill: Skill | null; d
   return {
     skill: {
       name,
-      description: frontmatter.description,
+      description,
       content: body,
       filePath,
     },
@@ -159,7 +155,7 @@ function parseSkillFile(raw: string, filePath: string): { skill: Skill | null; d
   };
 }
 
-function validateName(name: string): string[] {
+export function validateName(name: string): string[] {
   const errors: string[] = [];
   if (name.length > MAX_NAME_LENGTH) {
     errors.push(`name exceeds ${MAX_NAME_LENGTH} characters (${name.length})`);
@@ -172,6 +168,16 @@ function validateName(name: string): string[] {
   }
   if (name.includes("--")) {
     errors.push("name must not contain consecutive hyphens");
+  }
+  return errors;
+}
+
+export function validateDescription(description: string): string[] {
+  const errors: string[] = [];
+  if (!description || description.trim() === "") {
+    errors.push("description is required");
+  } else if (description.length > MAX_DESCRIPTION_LENGTH) {
+    errors.push(`description exceeds ${MAX_DESCRIPTION_LENGTH} characters (${description.length})`);
   }
   return errors;
 }
