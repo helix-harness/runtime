@@ -99,6 +99,14 @@ function testDynamicRegistration() {
   console.assert(agent.listSkills().length === 1, "❌ 应有 1 个 skill");
   console.assert(agent.getSkill("debug-helper")?.description === "辅助调试代码问题", "❌ 描述不匹配");
 
+  // 动态注册后 system prompt 应包含新 skill
+  const ctx = agent.getContext();
+  console.assert(ctx.systemPrompt.includes("debug-helper"), "❌ system prompt 应包含新 skill");
+  console.assert(ctx.systemPrompt.includes("load_skill"), "❌ system prompt 应提示 load_skill");
+
+  // 动态注册后 load_skill tool 应自动补注入
+  console.assert(ctx.tools.some(t => t.name === "load_skill"), "❌ load_skill tool 应自动补注入");
+
   console.log("✅ 动态注册通过\n");
 }
 

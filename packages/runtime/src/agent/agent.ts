@@ -75,6 +75,7 @@ export class Agent {
 
   // ── Skills ────────────────────────────────────────────────────────────────────
   private readonly skillRegistry: SkillRegistry;
+  private readonly baseSystemPrompt: string;
 
   // ── steeringMode: one-at-a-time queue ────────────────────────────────────
   private promptQueue: Promise<void> = Promise.resolve();
@@ -94,11 +95,8 @@ export class Agent {
     }
 
     // ── Build system prompt ───────────────────────────────────────────────────
-    let systemPrompt = opts.systemPrompt ?? "";
+    this.baseSystemPrompt = opts.systemPrompt ?? "";
     const skills = this.skillRegistry.list();
-    if (skills.length > 0) {
-      systemPrompt += formatSkillsForPrompt(skills);
-    }
 
     // ── Build tools (auto-inject load_skill when skills exist) ─────────────────
     const tools = [...(opts.tools ?? [])];
@@ -108,7 +106,7 @@ export class Agent {
 
     // ── Build context ─────────────────────────────────────────────────────────
     this.context = {
-      systemPrompt,
+      systemPrompt: this.baseSystemPrompt + formatSkillsForPrompt(skills),
       messages: [],
       tools,
     };
@@ -145,9 +143,20 @@ export class Agent {
   /**
    * Register a skill at runtime (supports in-memory skills without filePath).
    * Returns diagnostics for any validation issues.
+   * Automatically updates system prompt and injects load_skill tool if needed.
    */
   registerSkill(skill: Skill): SkillDiagnostic[] {
-    return this.skillRegistry.register(skill);
+    const diagnostics = this.skillRegistry.register(skill);
+
+    // Rebuild system prompt with updated skill list
+    this.context.systemPrompt = this.baseSystemPrompt + formatSkillsForPrompt(this.skillRegistry.list());
+
+    // Inject load_skill tool if not already present
+    if (!this.context.tools.some(t => t.name === "load_skill")) {
+      this.context.tools = [...this.context.tools, createLoadSkillTool(this.skillRegistry)];
+    }
+
+    return diagnostics;
   }
 
   /**
