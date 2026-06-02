@@ -167,9 +167,10 @@ description: 从文件加载的 skill
     console.assert(result.skill?.filePath === filePath, "❌ filePath 不匹配");
     console.assert(result.diagnostics.length === 0, "❌ 不应有 diagnostics");
 
-    // 有 filePath 的 skill 在 prompt 中应包含 location
+    // filePath 降级为元数据，prompt 中不再输出 location
     const prompt = formatSkillsForPrompt([result.skill!]);
-    console.assert(prompt.includes(`<location>${filePath}</location>`), "❌ 应包含 location 标签");
+    console.assert(prompt.includes("load_skill"), "❌ 应提示 load_skill");
+    console.assert(!prompt.includes("<location>"), "❌ 不应有 location 标签");
 
     console.log(`  文件: ${filePath}`);
     console.log(`  name: ${result.skill?.name}`);
@@ -210,10 +211,10 @@ async function testInvokeSkill() {
   console.log("✅ invokeSkill 通过\n");
 }
 
-// ─── 7) formatSkillsForPrompt 对比 ───────────────────────────────────────────
+// ─── 7) formatSkillsForPrompt 统一 load_skill ────────────────────────────────
 
 function testPromptFormatting() {
-  console.log("【7】formatSkillsForPrompt — 内存 vs 文件\n");
+  console.log("【7】formatSkillsForPrompt — 统一 load_skill\n");
 
   const memorySkill: Skill = {
     name: "mem",
@@ -230,15 +231,59 @@ function testPromptFormatting() {
   const memPrompt = formatSkillsForPrompt([memorySkill]);
   const filePrompt = formatSkillsForPrompt([fileSkill]);
 
-  console.log(`  内存 skill prompt 包含 location: ${memPrompt.includes("<location>")}`);
-  console.log(`  文件 skill prompt 包含 location: ${filePrompt.includes("<location>")}`);
-  console.assert(!memPrompt.includes("<location>"), "❌ 内存 skill 不应有 location");
-  console.assert(filePrompt.includes("/path/to/SKILL.md"), "❌ 文件 skill 应有 location");
+  // 统一使用 load_skill，不再输出 <location>
+  console.assert(!memPrompt.includes("<location>"), "❌ 不应有 location");
+  console.assert(!filePrompt.includes("<location>"), "❌ 不应有 location");
+  console.assert(memPrompt.includes("load_skill"), "❌ 应提示 load_skill");
+  console.assert(filePrompt.includes("load_skill"), "❌ 应提示 load_skill");
+  console.assert(memPrompt.includes("<name>mem</name>"), "❌ 应包含 skill name");
+  console.assert(filePrompt.includes("<name>file</name>"), "❌ 应包含 skill name");
 
   // 空数组
   console.assert(formatSkillsForPrompt([]) === "", "❌ 空数组应返回空字符串");
 
   console.log("✅ Prompt 格式化通过\n");
+}
+
+// ─── 8) load_skill tool 自动注入 ─────────────────────────────────────────────
+
+function testLoadSkillTool() {
+  console.log("【8】load_skill tool — 自动注入\n");
+
+  // 有 skill 时自动注入 load_skill tool
+  const agentWithSkills = new Agent({
+    model: createModel(),
+    systemPrompt: "你是一个助手。",
+    skills: [{ name: "test", description: "test skill", content: "instructions" }],
+  });
+  const tools = agentWithSkills.getContext().tools;
+  const loadSkillTool = tools.find(t => t.name === "load_skill");
+  console.log(`  tools 数量: ${tools.length}`);
+  console.assert(loadSkillTool !== undefined, "❌ 有 skill 时应自动注入 load_skill tool");
+  console.assert(loadSkillTool?.parameters.required?.includes("name"), "❌ load_skill 应要求 name 参数");
+
+  // 无 skill 时不注入
+  const agentNoSkills = new Agent({
+    model: createModel(),
+    systemPrompt: "你是一个助手。",
+  });
+  console.assert(
+    agentNoSkills.getContext().tools.find(t => t.name === "load_skill") === undefined,
+    "❌ 无 skill 时不应注入 load_skill tool"
+  );
+
+  // 用户自定义 tool 不被覆盖
+  const agentWithCustom = new Agent({
+    model: createModel(),
+    systemPrompt: "你是一个助手。",
+    tools: [{ name: "my_tool", description: "custom", parameters: { type: "object" as const, properties: {} }, execute: async () => ({}) }],
+    skills: [{ name: "test", description: "test", content: "content" }],
+  });
+  const allTools = agentWithCustom.getContext().tools;
+  console.assert(allTools.some(t => t.name === "my_tool"), "❌ 用户自定义 tool 应保留");
+  console.assert(allTools.some(t => t.name === "load_skill"), "❌ load_skill 应追加");
+
+  console.log("✅ load_skill tool 注入通过\n");
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -251,6 +296,7 @@ export async function skills() {
   testValidation();
   testPromptFormatting();
   testFileLoading();
+  testLoadSkillTool();
 
   // 需要 LLM 的测试
   if (!checkEnv()) {

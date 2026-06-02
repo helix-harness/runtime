@@ -5,6 +5,7 @@ import type { AgentLoopConfig, StreamFn } from "../loop/index";
 import { agentLoop, agentLoopContinue } from "../loop/index";
 import { SkillRegistry } from "../skill/SkillRegistry";
 import { formatSkillsForPrompt } from "../skill/prompt";
+import { createLoadSkillTool } from "../skill/load-skill-tool";
 
 // ─── SteeringMode ─────────────────────────────────────────────────────────────
 
@@ -99,11 +100,17 @@ export class Agent {
       systemPrompt += formatSkillsForPrompt(skills);
     }
 
+    // ── Build tools (auto-inject load_skill when skills exist) ─────────────────
+    const tools = [...(opts.tools ?? [])];
+    if (skills.length > 0) {
+      tools.push(createLoadSkillTool(this.skillRegistry));
+    }
+
     // ── Build context ─────────────────────────────────────────────────────────
     this.context = {
       systemPrompt,
       messages: [],
-      tools: opts.tools ?? [],
+      tools,
     };
 
     // ── Build loop config (immutable after construction) ──────────────────────

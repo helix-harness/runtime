@@ -3,7 +3,7 @@ export { Agent } from "./agent/agent";
 export type { AgentOptions, SteeringMode } from "./agent/agent";
 
 // ─── Skills ─────────────────────────────────────────────────────────────────
-export { SkillRegistry, loadSkills, loadSkillFromFile, formatSkillsForPrompt } from "./skill/index";
+export { SkillRegistry, loadSkills, loadSkillFromFile, formatSkillsForPrompt, createLoadSkillTool } from "./skill/index";
 export type { LoadSkillOptions, LoadSkillsResult, SkillDiagnostic, SkillDiagnosticCode } from "./skill/index";
 
 // ─── agentLoop (stateless) ───────────────────────────────────────────────────
