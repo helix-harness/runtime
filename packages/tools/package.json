@@ -1,5 +1,5 @@
 {
-  "name": "@helix/tools",
+  "name": "@helixharness/tools",
   "version": "0.1.0",
   "description": "Built-in tools for the Helix agent runtime — file system, shell, and more",
   "license": "MIT",
@@ -30,6 +30,6 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@helix/core": "workspace:*"
+    "@helixharness/core": "workspace:*"
   }
 }

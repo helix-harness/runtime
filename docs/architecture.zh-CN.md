@@ -9,7 +9,7 @@
 ## 1. 定位
 
 ```
-@helix/runtime 是一个 Harness Runtime SDK。
+@helixharness/runtime 是一个 Harness Runtime SDK。
 
 不是 AI。不是 Agent 产品。
 是让任何人都能快速构建 Agent 的执行层基础设施。
@@ -18,8 +18,8 @@
 使用者拿到 SDK，配上 Model，即可组装出一个完整的 Agent：
 
 ```ts
-import { Agent } from "@helix/runtime"
-import { getModel } from "@helix/models"
+import { Agent } from "@helixharness/runtime"
+import { getModel } from "@helixharness/models"
 
 const agent = new Agent({
   model: getModel({ model: "gpt-4o", apiKey: process.env.LLM_API_KEY }),
@@ -45,13 +45,13 @@ await agent.prompt("帮我完成这个任务")
 ```
 Agent = Model + Harness
            ↑
-  @helix/runtime 就是 Harness 的实现
+  @helixharness/runtime 就是 Harness 的实现
 ```
 
 | 层 | 职责 | 谁来做 |
 |---|---|---|
 | **Model（思考层）** | 推理、生成、tool call 决策 | GPT / Claude / Gemini |
-| **Harness（执行层）** | 循环控制、工具执行、状态管理、事件流 | **@helix/runtime** |
+| **Harness（执行层）** | 循环控制、工具执行、状态管理、事件流 | **@helixharness/runtime** |
 
 ### 2.2 Harness Runtime 负责
 
@@ -79,16 +79,16 @@ Agent = Model + Harness
 
 | 包 | 定位 | 依赖 |
 |---|---|---|
-| `@helix/core` | 共享类型：AgentMessage, AgentContext, ToolDef, ModelAdapter | 零依赖 |
-| `@helix/runtime` | Harness 核心：Agent, agentLoop, tools, compaction, session, events | `@helix/core` |
-| `@helix/models` | LLM 适配器：OpenAI 兼容, Anthropic 兼容 | `@helix/core` |
+| `@helixharness/core` | 共享类型：AgentMessage, AgentContext, ToolDef, ModelAdapter | 零依赖 |
+| `@helixharness/runtime` | Harness 核心：Agent, agentLoop, tools, compaction, session, events | `@helixharness/core` |
+| `@helixharness/models` | LLM 适配器：OpenAI 兼容, Anthropic 兼容 | `@helixharness/core` |
 
 ### 3.2 依赖关系
 
 ```
-@helix/core        （零依赖）
+@helixharness/core        （零依赖）
       ↑         ↑
-@helix/runtime  @helix/models    （互不依赖，各自依赖 core）
+@helixharness/runtime  @helixharness/models    （互不依赖，各自依赖 core）
       ↑
 你的 Agent          （消费 SDK）
 ```
@@ -380,7 +380,7 @@ Multi-agent = Agent as Tool（子 agent 作为父 agent 的 tool）
 ### 8.2 实现方式
 
 ```ts
-import { createSubagentTool } from "@helix/runtime"
+import { createSubagentTool } from "@helixharness/runtime"
 
 const codeReviewAgent = new Agent({
   model: getModel({ provider: "anthropic-compatible", model: "claude-sonnet-4-20250514", apiKey }),
@@ -460,7 +460,7 @@ runtime 在每次 LLM 调用前执行 `transformContext`。如果转换后 token
 ### 10.1 内置 Store
 
 ```ts
-import { MemorySessionStore, FileSessionStore } from "@helix/runtime"
+import { MemorySessionStore, FileSessionStore } from "@helixharness/runtime"
 
 // 内存存储（测试用）
 const store = new MemorySessionStore()
@@ -508,11 +508,11 @@ AbortSignal 透传给：`ModelAdapter.stream()`、tool 执行、`transformContex
 ┌──────────────────────────────────────────────┐
 │           业务 Agent 工程（独立 repo）         │
 │   coding-agent / web-agent / custom-agent    │
-│   消费 @helix/runtime SDK                    │
+│   消费 @helixharness/runtime SDK                    │
 └──────────────────────────────────────────────┘
                       ↓
 ┌──────────────────────────────────────────────┐
-│             @helix/runtime                   │
+│             @helixharness/runtime                   │
 │           (Harness / Kernel)                 │
 │                                              │
 │  Agent class ──→ agentLoop()                 │
@@ -529,7 +529,7 @@ AbortSignal 透传给：`ModelAdapter.stream()`、tool 执行、`transformContex
 │  AsyncIterable<AgentEvent>                   │
 └──────────────────────────────────────────────┘
           ↓                      ↓
-   @helix/models           你的 Tools
+   @helixharness/models           你的 Tools
           ↓                      ↓
          LLM               执行层
 ```

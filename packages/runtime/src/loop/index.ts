@@ -1,4 +1,4 @@
-import type { AgentContext, AgentMessage, ModelAdapter, ToolResult, StreamOpts, ModelChunk, ThinkingLevel } from "@helix/core";
+import type { AgentContext, AgentMessage, ModelAdapter, ToolResult, StreamOpts, ModelChunk, ThinkingLevel } from "@helixharness/core";
 import type { AgentEvent } from "../event/types";
 import { runAgentLoop } from "./run";
 

@@ -11,8 +11,8 @@
  *  7) shouldStopAfterTurn — 限制最大轮数
  */
 
-import { Agent } from "@helix/runtime";
-import type { ToolDef } from "@helix/core";
+import { Agent } from "@helixharness/runtime";
+import type { ToolDef } from "@helixharness/core";
 import { createModel, checkEnv } from "./shared";
 
 // ─── Tools ───────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import type { Skill } from "@helix/core";
+import type { Skill } from "@helixharness/core";
 import type { SkillDiagnostic } from "./loader";
 import { validateName, validateDescription } from "./loader";
 

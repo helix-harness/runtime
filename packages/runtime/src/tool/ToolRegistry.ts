@@ -1,4 +1,4 @@
-import type { ToolDef } from "@helix/core";
+import type { ToolDef } from "@helixharness/core";
 
 export class ToolRegistry {
   private tools = new Map<string, ToolDef>();

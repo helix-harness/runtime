@@ -1,5 +1,5 @@
 {
-  "name": "@helix/runtime",
+  "name": "@helixharness/runtime",
   "version": "0.1.0",
   "description": "Harness runtime for building AI agents — agent loop, tool orchestration, event streaming",
   "license": "MIT",
@@ -30,6 +30,6 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@helix/core": "workspace:*"
+    "@helixharness/core": "workspace:*"
   }
 }

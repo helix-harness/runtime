@@ -1,4 +1,4 @@
-import type { ToolResult, ToolCallRef } from "@helix/core";
+import type { ToolResult, ToolCallRef } from "@helixharness/core";
 import type { ToolRegistry } from "./ToolRegistry";
 import type { AgentEvent } from "../event/types";
 

@@ -1,4 +1,4 @@
-import type { ToolDef } from "@helix/core";
+import type { ToolDef } from "@helixharness/core";
 import type { SkillRegistry } from "./SkillRegistry";
 
 interface LoadSkillArgs {

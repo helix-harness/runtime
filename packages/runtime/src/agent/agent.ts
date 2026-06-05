@@ -1,4 +1,4 @@
-import type { AgentContext, AgentMessage, ModelAdapter, ToolDef, ContentPart, Skill } from "@helix/core";
+import type { AgentContext, AgentMessage, ModelAdapter, ToolDef, ContentPart, Skill } from "@helixharness/core";
 import type { SkillDiagnostic } from "../skill/loader";
 import type { AgentEvent } from "../event/types";
 import type { AgentLoopConfig, StreamFn } from "../loop/index";

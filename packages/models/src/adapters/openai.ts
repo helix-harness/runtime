@@ -1,6 +1,6 @@
 import OpenAI from "openai";
-import type { ModelAdapter, AgentMessage, ToolDef, ModelChunk, ContentPart } from "@helix/core";
-import { getContentText } from "@helix/core";
+import type { ModelAdapter, AgentMessage, ToolDef, ModelChunk, ContentPart } from "@helixharness/core";
+import { getContentText } from "@helixharness/core";
 
 export interface OpenAICompatibleAdapterOptions {
   apiKey: string;

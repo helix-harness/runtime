@@ -1,5 +1,5 @@
 {
-  "name": "@helix/core",
+  "name": "@helixharness/core",
   "version": "0.1.0",
   "description": "Shared types and interfaces for the Helix agent runtime — AgentMessage, AgentContext, ToolDef, and ModelAdapter types",
   "license": "MIT",

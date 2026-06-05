@@ -1,4 +1,4 @@
-import type { ModelAdapter } from "@helix/core";
+import type { ModelAdapter } from "@helixharness/core";
 import { OpenAICompatibleAdapter } from "./adapters/openai";
 import { AnthropicCompatibleAdapter } from "./adapters/anthropic";
 

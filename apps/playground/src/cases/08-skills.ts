@@ -10,8 +10,8 @@
  *  6) invokeSkill() 调用（需要 LLM）
  */
 
-import { Agent, SkillRegistry, loadSkillFromFile, formatSkillsForPrompt } from "@helix/runtime";
-import type { Skill } from "@helix/core";
+import { Agent, SkillRegistry, loadSkillFromFile, formatSkillsForPrompt } from "@helixharness/runtime";
+import type { Skill } from "@helixharness/core";
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

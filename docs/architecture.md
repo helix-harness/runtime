@@ -9,7 +9,7 @@
 ## 1. Positioning
 
 ```
-@helix/runtime is a Harness Runtime SDK.
+@helixharness/runtime is a Harness Runtime SDK.
 
 Not AI. Not an Agent product.
 It is the execution-layer infrastructure that lets anyone build Agents quickly.
@@ -18,8 +18,8 @@ It is the execution-layer infrastructure that lets anyone build Agents quickly.
 With the SDK and a Model, you can assemble a complete Agent:
 
 ```ts
-import { Agent } from "@helix/runtime"
-import { getModel } from "@helix/models"
+import { Agent } from "@helixharness/runtime"
+import { getModel } from "@helixharness/models"
 
 const agent = new Agent({
   model: getModel({ model: "gpt-4o", apiKey: process.env.LLM_API_KEY }),
@@ -45,13 +45,13 @@ await agent.prompt("Help me with this task")
 ```
 Agent = Model + Harness
            ↑
-  @helix/runtime IS the Harness
+  @helixharness/runtime IS the Harness
 ```
 
 | Layer | Responsibility | Who |
 |---|---|---|
 | **Model** (Thinking) | Reasoning, generation, tool call decisions | GPT / Claude / Gemini |
-| **Harness** (Execution) | Loop control, tool execution, state management, event streaming | **@helix/runtime** |
+| **Harness** (Execution) | Loop control, tool execution, state management, event streaming | **@helixharness/runtime** |
 
 ### 2.2 What the Harness Handles
 
@@ -79,16 +79,16 @@ Agent = Model + Harness
 
 | Package | Purpose | Dependencies |
 |---|---|---|
-| `@helix/core` | Shared types: AgentMessage, AgentContext, ToolDef, ModelAdapter | Zero |
-| `@helix/runtime` | Harness core: Agent, agentLoop, tools, compaction, session, events | `@helix/core` |
-| `@helix/models` | LLM adapters: OpenAI-compatible, Anthropic-compatible | `@helix/core` |
+| `@helixharness/core` | Shared types: AgentMessage, AgentContext, ToolDef, ModelAdapter | Zero |
+| `@helixharness/runtime` | Harness core: Agent, agentLoop, tools, compaction, session, events | `@helixharness/core` |
+| `@helixharness/models` | LLM adapters: OpenAI-compatible, Anthropic-compatible | `@helixharness/core` |
 
 ### 3.2 Dependency Graph
 
 ```
-@helix/core        (zero dependencies)
+@helixharness/core        (zero dependencies)
       ↑         ↑
-@helix/runtime  @helix/models    (independent, both depend on core)
+@helixharness/runtime  @helixharness/models    (independent, both depend on core)
       ↑
 Your Agent         (consumes the SDK)
 ```
@@ -380,7 +380,7 @@ No extra orchestration layer. Reuses the existing tool mechanism — the parent 
 ### 8.2 Implementation
 
 ```ts
-import { createSubagentTool } from "@helix/runtime"
+import { createSubagentTool } from "@helixharness/runtime"
 
 const codeReviewAgent = new Agent({
   model: getModel({ provider: "anthropic-compatible", model: "claude-sonnet-4-20250514", apiKey }),
@@ -460,7 +460,7 @@ The runtime calls `transformContext` before each LLM call. If token count decrea
 ### 10.1 Built-in Stores
 
 ```ts
-import { MemorySessionStore, FileSessionStore } from "@helix/runtime"
+import { MemorySessionStore, FileSessionStore } from "@helixharness/runtime"
 
 // In-memory (testing)
 const store = new MemorySessionStore()
@@ -508,11 +508,11 @@ AbortSignal is forwarded to: `ModelAdapter.stream()`, tool execution, and `trans
 ┌──────────────────────────────────────────────┐
 │         Your Agent Project (separate repo)   │
 │   coding-agent / web-agent / custom-agent    │
-│   Consumes @helix/runtime SDK                │
+│   Consumes @helixharness/runtime SDK                │
 └──────────────────────────────────────────────┘
                       ↓
 ┌──────────────────────────────────────────────┐
-│             @helix/runtime                   │
+│             @helixharness/runtime                   │
 │           (Harness / Kernel)                 │
 │                                              │
 │  Agent class ──→ agentLoop()                 │
@@ -529,7 +529,7 @@ AbortSignal is forwarded to: `ModelAdapter.stream()`, tool execution, and `trans
 │  AsyncIterable<AgentEvent>                   │
 └──────────────────────────────────────────────┘
           ↓                      ↓
-   @helix/models           Your Tools
+   @helixharness/models           Your Tools
           ↓                      ↓
          LLM              Execution Layer
 ```

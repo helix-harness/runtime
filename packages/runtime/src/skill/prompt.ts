@@ -1,4 +1,4 @@
-import type { Skill } from "@helix/core";
+import type { Skill } from "@helixharness/core";
 
 /**
  * Format skill name+description as XML for system prompt injection (progressive disclosure).

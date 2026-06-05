@@ -81,7 +81,7 @@ export interface StreamOpts {
 // ─── ModelAdapter ─────────────────────────────────────────────────────────────
 
 /**
- * The contract between @helix/runtime and any LLM provider.
+ * The contract between @helixharness/runtime and any LLM provider.
  *
  * Chunk order per turn:
  *   1. Zero or more thinking_delta (if thinkingLevel != "off" and model supports it)

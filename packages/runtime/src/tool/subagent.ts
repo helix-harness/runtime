@@ -1,5 +1,5 @@
-import type { ToolDef, AgentMessage, ContentPart } from "@helix/core";
-import { getContentText } from "@helix/core";
+import type { ToolDef, AgentMessage, ContentPart } from "@helixharness/core";
+import { getContentText } from "@helixharness/core";
 import type { AgentEvent } from "../event";
 
 export interface SubagentToolOpts {

@@ -1,11 +1,11 @@
-# @helix/models
+# @helixharness/models
 
 LLM model adapters for the Helix agent runtime.
 
 ## Install
 
 ```bash
-npm install @helix/models
+npm install @helixharness/models
 ```
 
 ## Supported Adapters
@@ -17,7 +17,7 @@ npm install @helix/models
 ## Quick Example
 
 ```ts
-import { getModel } from "@helix/models";
+import { getModel } from "@helixharness/models";
 
 const model = getModel({
   model: "gpt-4o",

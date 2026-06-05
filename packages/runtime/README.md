@@ -1,11 +1,11 @@
-# @helix/runtime
+# @helixharness/runtime
 
 Harness runtime for building AI agents — agent loop, tool orchestration, event streaming.
 
 ## Install
 
 ```bash
-npm install @helix/runtime @helix/models @helix/core @helix/tools
+npm install @helixharness/runtime @helixharness/models @helixharness/core @helixharness/tools
 ```
 
 ## What's inside
@@ -21,9 +21,9 @@ npm install @helix/runtime @helix/models @helix/core @helix/tools
 ## Quick Example
 
 ```ts
-import { Agent } from "@helix/runtime";
-import { getModel } from "@helix/models";
-import { bashTool, readFileTool } from "@helix/tools";
+import { Agent } from "@helixharness/runtime";
+import { getModel } from "@helixharness/models";
+import { bashTool, readFileTool } from "@helixharness/tools";
 
 const agent = new Agent({
   model: getModel("gpt-4o", { apiKey: process.env.OPENAI_API_KEY }),

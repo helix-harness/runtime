@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@helix/core";
+import type { AgentMessage } from "@helixharness/core";
 import * as fs from "fs";
 import * as path from "path";
 

@@ -26,13 +26,13 @@ A TypeScript Agent execution-layer SDK. It handles all the runtime plumbing — 
 ## Quick Start
 
 ```bash
-pnpm add @helix/runtime @helix/models @helix/core @helix/tools
+pnpm add @helixharness/runtime @helixharness/models @helixharness/core @helixharness/tools
 ```
 
 ```typescript
-import { Agent } from "@helix/runtime";
-import { getModel } from "@helix/models";
-import { bashTool, readFileTool } from "@helix/tools";
+import { Agent } from "@helixharness/runtime";
+import { getModel } from "@helixharness/models";
+import { bashTool, readFileTool } from "@helixharness/tools";
 
 const agent = new Agent({
   model: getModel({
@@ -57,7 +57,7 @@ await agent.prompt("List files in the current directory");
 ### Stateless Loop (Low-level)
 
 ```typescript
-import { agentLoop } from "@helix/runtime";
+import { agentLoop } from "@helixharness/runtime";
 
 const context = {
   systemPrompt: "You are helpful.",
@@ -75,15 +75,15 @@ for await (const event of agentLoop([userMsg], context, { model })) {
 
 | Package | Description |
 |---|---|
-| `@helix/core` | Zero-dependency shared types: `AgentMessage`, `ToolDef`, `ModelAdapter`, `AgentContext`, `Skill` |
-| `@helix/runtime` | Harness core: `Agent`, `agentLoop`, `ToolRegistry`, `ToolExecutor`, Compaction, Session, Skill |
-| `@helix/models` | LLM adapters: OpenAI-compatible, Anthropic-compatible |
-| `@helix/tools` | Built-in tools: `readFileTool`, `writeFileTool`, `globTool`, `bashTool` |
+| `@helixharness/core` | Zero-dependency shared types: `AgentMessage`, `ToolDef`, `ModelAdapter`, `AgentContext`, `Skill` |
+| `@helixharness/runtime` | Harness core: `Agent`, `agentLoop`, `ToolRegistry`, `ToolExecutor`, Compaction, Session, Skill |
+| `@helixharness/models` | LLM adapters: OpenAI-compatible, Anthropic-compatible |
+| `@helixharness/tools` | Built-in tools: `readFileTool`, `writeFileTool`, `globTool`, `bashTool` |
 
 ```text
-@helix/core        ← Zero-dependency shared types
+@helixharness/core        ← Zero-dependency shared types
       ↑         ↑         ↑
-@helix/runtime  @helix/models  @helix/tools   ← Each depends on core
+@helixharness/runtime  @helixharness/models  @helixharness/tools   ← Each depends on core
       ↑
 Your Agent         ← Consumes the SDK
 ```
@@ -95,7 +95,7 @@ Your Agent         ← Consumes the SDK
 A stateful wrapper that manages message accumulation, abort control, and event subscription.
 
 ```typescript
-import { Agent } from "@helix/runtime";
+import { Agent } from "@helixharness/runtime";
 
 const agent = new Agent({
   model,                              // ModelAdapter
@@ -128,7 +128,7 @@ const agent = new Agent({ model, steeringMode: "all" });
 Tools are plain objects with a schema and an execute function:
 
 ```typescript
-import type { ToolDef } from "@helix/core";
+import type { ToolDef } from "@helixharness/core";
 
 const calculator: ToolDef = {
   name: "calculator",
@@ -171,10 +171,10 @@ A tool can signal loop termination by returning `{ terminate: true }`.
 
 ### Built-in Tools
 
-`@helix/tools` provides ready-to-use tools with safety features:
+`@helixharness/tools` provides ready-to-use tools with safety features:
 
 ```typescript
-import { readFileTool, writeFileTool, globTool, bashTool } from "@helix/tools";
+import { readFileTool, writeFileTool, globTool, bashTool } from "@helixharness/tools";
 
 const tools = [
   readFileTool({ rootDir: "./project", maxChars: 50000 }),
@@ -194,7 +194,7 @@ const tools = [
 Wrap any `Agent` as a tool for multi-agent orchestration:
 
 ```typescript
-import { createSubagentTool } from "@helix/runtime";
+import { createSubagentTool } from "@helixharness/runtime";
 
 const specialist = new Agent({
   model,
@@ -220,7 +220,7 @@ const orchestrator = new Agent({
 Both low-level and high-level APIs support image content:
 
 ```typescript
-import { imagePart } from "@helix/core";
+import { imagePart } from "@helixharness/core";
 
 // Low-level: pass ContentPart[] to agentLoop
 const msg = {
@@ -243,7 +243,7 @@ await agent.prompt([
 Built-in strategies to keep conversation context under control:
 
 ```typescript
-import { sliceCompaction, tokenCompaction, summaryCompaction, compose } from "@helix/runtime";
+import { sliceCompaction, tokenCompaction, summaryCompaction, compose } from "@helixharness/runtime";
 
 // Slice: keep last N messages
 const agent = new Agent({
@@ -280,7 +280,7 @@ const agent = new Agent({
 ### Session Persistence
 
 ```typescript
-import { MemorySessionStore, FileSessionStore } from "@helix/runtime";
+import { MemorySessionStore, FileSessionStore } from "@helixharness/runtime";
 
 // In-memory (for testing)
 const store = new MemorySessionStore();
@@ -298,7 +298,7 @@ const loaded = await store.get(session.id);
 Skills are reusable prompt templates loaded from YAML/JSON files:
 
 ```typescript
-import { loadSkills, formatSkillsForPrompt } from "@helix/runtime";
+import { loadSkills, formatSkillsForPrompt } from "@helixharness/runtime";
 
 const { skills, diagnostics } = await loadSkills({ dirs: ["./skills"] });
 const agent = new Agent({ model, skills });

@@ -1,5 +1,5 @@
-import type { AgentContext, AgentMessage, ToolResult } from "@helix/core";
-import { getContentTokens } from "@helix/core";
+import type { AgentContext, AgentMessage, ToolResult } from "@helixharness/core";
+import { getContentTokens } from "@helixharness/core";
 import type { AgentEvent } from "../event";
 import type { AgentLoopConfig } from "./index";
 import { ToolRegistry } from "../tool";

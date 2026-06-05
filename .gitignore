@@ -149,3 +149,4 @@ vite.config.ts.timestamp-*
 
 # Claude Code 配置
 CLAUDE.md
+.npmrc

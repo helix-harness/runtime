@@ -9,9 +9,9 @@
  * 不支持 vision 的 provider 会跳过测试。
  */
 
-import { Agent } from "@helix/runtime";
-import type { AgentMessage } from "@helix/core";
-import { textPart, imagePart } from "@helix/core";
+import { Agent } from "@helixharness/runtime";
+import type { AgentMessage } from "@helixharness/core";
+import { textPart, imagePart } from "@helixharness/core";
 import { createModel, checkEnv } from "./shared";
 
 // 2x2 红色 PNG（纯 base64，不含 data: 前缀）

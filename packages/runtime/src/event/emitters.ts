@@ -1,5 +1,5 @@
 import type { AgentEvent } from "./types";
-import type { AgentMessage, ToolResult } from "@helix/core";
+import type { AgentMessage, ToolResult } from "@helixharness/core";
 
 export type EventSink = (event: AgentEvent) => void;
 

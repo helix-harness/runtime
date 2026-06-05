@@ -1,5 +1,5 @@
-import type { AgentMessage, ModelAdapter } from "@helix/core";
-import { getContentText, getContentTokens } from "@helix/core";
+import type { AgentMessage, ModelAdapter } from "@helixharness/core";
+import { getContentText, getContentTokens } from "@helixharness/core";
 import { estimateTokens } from "../loop/run";
 
 // ─── TransformContext type ────────────────────────────────────────────────────

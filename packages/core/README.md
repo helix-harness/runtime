@@ -1,11 +1,11 @@
-# @helix/core
+# @helixharness/core
 
 Shared types and interfaces for the Helix agent runtime — zero dependencies.
 
 ## Install
 
 ```bash
-npm install @helix/core
+npm install @helixharness/core
 ```
 
 ## What's inside
@@ -19,7 +19,7 @@ npm install @helix/core
 ## Quick Example
 
 ```ts
-import type { AgentMessage, ToolDef, ToolResult } from "@helix/core";
+import type { AgentMessage, ToolDef, ToolResult } from "@helixharness/core";
 
 const message: AgentMessage = {
   role: "user",

@@ -1,5 +1,5 @@
 {
-  "name": "@helix/models",
+  "name": "@helixharness/models",
   "version": "0.1.0",
   "description": "LLM model adapters for the Helix agent runtime — OpenAI, Anthropic, and more",
   "license": "MIT",
@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
-    "@helix/core": "workspace:*",
+    "@helixharness/core": "workspace:*",
     "openai": "^5.0.0"
   }
 }

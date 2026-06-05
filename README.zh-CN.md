@@ -26,13 +26,13 @@
 ## 快速开始
 
 ```bash
-pnpm add @helix/runtime @helix/models @helix/core @helix/tools
+pnpm add @helixharness/runtime @helixharness/models @helixharness/core @helixharness/tools
 ```
 
 ```typescript
-import { Agent } from "@helix/runtime";
-import { getModel } from "@helix/models";
-import { bashTool, readFileTool } from "@helix/tools";
+import { Agent } from "@helixharness/runtime";
+import { getModel } from "@helixharness/models";
+import { bashTool, readFileTool } from "@helixharness/tools";
 
 const agent = new Agent({
   model: getModel({
@@ -57,7 +57,7 @@ await agent.prompt("列出当前目录的文件");
 ### 无状态循环（低层 API）
 
 ```typescript
-import { agentLoop } from "@helix/runtime";
+import { agentLoop } from "@helixharness/runtime";
 
 const context = {
   systemPrompt: "You are helpful.",
@@ -75,15 +75,15 @@ for await (const event of agentLoop([userMsg], context, { model })) {
 
 | 包 | 说明 |
 |---|---|
-| `@helix/core` | 零依赖共享类型：`AgentMessage`、`ToolDef`、`ModelAdapter`、`AgentContext`、`Skill` |
-| `@helix/runtime` | Harness 核心：`Agent`、`agentLoop`、`ToolRegistry`、`ToolExecutor`、Compaction、Session、Skill |
-| `@helix/models` | LLM 适配器：OpenAI 兼容、Anthropic 兼容 |
-| `@helix/tools` | 内置工具：`readFileTool`、`writeFileTool`、`globTool`、`bashTool` |
+| `@helixharness/core` | 零依赖共享类型：`AgentMessage`、`ToolDef`、`ModelAdapter`、`AgentContext`、`Skill` |
+| `@helixharness/runtime` | Harness 核心：`Agent`、`agentLoop`、`ToolRegistry`、`ToolExecutor`、Compaction、Session、Skill |
+| `@helixharness/models` | LLM 适配器：OpenAI 兼容、Anthropic 兼容 |
+| `@helixharness/tools` | 内置工具：`readFileTool`、`writeFileTool`、`globTool`、`bashTool` |
 
 ```text
-@helix/core        ← 零依赖共享类型
+@helixharness/core        ← 零依赖共享类型
       ↑         ↑         ↑
-@helix/runtime  @helix/models  @helix/tools   ← 各自依赖 core
+@helixharness/runtime  @helixharness/models  @helixharness/tools   ← 各自依赖 core
       ↑
 你的 Agent          ← 消费 SDK
 ```
@@ -95,7 +95,7 @@ for await (const event of agentLoop([userMsg], context, { model })) {
 有状态封装，管理消息累积、取消控制和事件订阅。
 
 ```typescript
-import { Agent } from "@helix/runtime";
+import { Agent } from "@helixharness/runtime";
 
 const agent = new Agent({
   model,                              // ModelAdapter
@@ -128,7 +128,7 @@ const agent = new Agent({ model, steeringMode: "all" });
 工具是带有 schema 和 execute 函数的普通对象：
 
 ```typescript
-import type { ToolDef } from "@helix/core";
+import type { ToolDef } from "@helixharness/core";
 
 const calculator: ToolDef = {
   name: "calculator",
@@ -171,10 +171,10 @@ const agent = new Agent({
 
 ### 内置工具
 
-`@helix/tools` 提供开箱即用的工具，内置安全防护：
+`@helixharness/tools` 提供开箱即用的工具，内置安全防护：
 
 ```typescript
-import { readFileTool, writeFileTool, globTool, bashTool } from "@helix/tools";
+import { readFileTool, writeFileTool, globTool, bashTool } from "@helixharness/tools";
 
 const tools = [
   readFileTool({ rootDir: "./project", maxChars: 50000 }),
@@ -194,7 +194,7 @@ const tools = [
 将任意 `Agent` 包装为 Tool，实现 multi-agent 编排：
 
 ```typescript
-import { createSubagentTool } from "@helix/runtime";
+import { createSubagentTool } from "@helixharness/runtime";
 
 const specialist = new Agent({
   model,
@@ -220,7 +220,7 @@ const orchestrator = new Agent({
 低层和高层 API 均支持图片内容：
 
 ```typescript
-import { imagePart, textPart } from "@helix/core";
+import { imagePart, textPart } from "@helixharness/core";
 
 // 低层：传 ContentPart[] 给 agentLoop
 const msg = {
@@ -243,7 +243,7 @@ await agent.prompt([
 内置多种策略，防止对话上下文无限增长：
 
 ```typescript
-import { sliceCompaction, tokenCompaction, summaryCompaction, compose } from "@helix/runtime";
+import { sliceCompaction, tokenCompaction, summaryCompaction, compose } from "@helixharness/runtime";
 
 // 按条数截断：保留最近 N 条
 const agent = new Agent({
@@ -280,7 +280,7 @@ const agent = new Agent({
 ### Session 持久化
 
 ```typescript
-import { MemorySessionStore, FileSessionStore } from "@helix/runtime";
+import { MemorySessionStore, FileSessionStore } from "@helixharness/runtime";
 
 // 内存存储（测试用）
 const store = new MemorySessionStore();
@@ -298,7 +298,7 @@ const loaded = await store.get(session.id);
 Skill 是从 YAML/JSON 文件加载的可复用提示词模板：
 
 ```typescript
-import { loadSkills, formatSkillsForPrompt } from "@helix/runtime";
+import { loadSkills, formatSkillsForPrompt } from "@helixharness/runtime";
 
 const { skills, diagnostics } = await loadSkills({ dirs: ["./skills"] });
 const agent = new Agent({ model, skills });

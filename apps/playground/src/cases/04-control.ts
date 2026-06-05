@@ -13,8 +13,8 @@
  * 说明：6/7 使用 mock streamFn，不需要真实 API key 也能跑。
  */
 
-import { Agent, type AgentEvent } from "@helix/runtime";
-import type { ToolDef, AgentMessage } from "@helix/core";
+import { Agent, type AgentEvent } from "@helixharness/runtime";
+import type { ToolDef, AgentMessage } from "@helixharness/core";
 import { createModel, checkEnv } from "./shared";
 
 // ─── 1) AbortSignal ─────────────────────────────────────────────────────────

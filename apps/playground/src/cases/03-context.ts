@@ -16,7 +16,7 @@ import {
   summaryCompaction,
   compose,
   type AgentEvent,
-} from "@helix/runtime";
+} from "@helixharness/runtime";
 import { createModel, checkEnv } from "./shared";
 
 // ─── 1) convertToLlm ─────────────────────────────────────────────────────────

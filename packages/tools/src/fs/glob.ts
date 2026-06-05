@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import type { ToolDef } from "@helix/core";
+import type { ToolDef } from "@helixharness/core";
 
 // ─── globTool ─────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 {
-  "name": "@helix/playground",
+  "name": "@helixharness/playground",
   "private": true,
   "type": "module",
   "version": "0.0.1",
@@ -7,9 +7,9 @@
     "dev": "node --env-file=../../.env -r tsx src/index.ts"
   },
   "dependencies": {
-    "@helix/runtime": "workspace:*",
-    "@helix/core": "workspace:*",
-    "@helix/models": "workspace:*"
+    "@helixharness/runtime": "workspace:*",
+    "@helixharness/core": "workspace:*",
+    "@helixharness/models": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0"

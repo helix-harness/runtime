@@ -1,11 +1,11 @@
-# @helix/tools
+# @helixharness/tools
 
 Built-in tools for the Helix agent runtime.
 
 ## Install
 
 ```bash
-npm install @helix/tools
+npm install @helixharness/tools
 ```
 
 ## Built-in Tools
@@ -18,7 +18,7 @@ npm install @helix/tools
 ## Quick Example
 
 ```ts
-import { readFileTool, writeFileTool, bashTool } from "@helix/tools";
+import { readFileTool, writeFileTool, bashTool } from "@helixharness/tools";
 
 const agent = new Agent({
   tools: [

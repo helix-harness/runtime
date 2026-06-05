@@ -9,8 +9,8 @@
  * 不需要 LLM_API_KEY。
  */
 
-import { MemorySessionStore, FileSessionStore } from "@helix/runtime";
-import type { AgentMessage } from "@helix/core";
+import { MemorySessionStore, FileSessionStore } from "@helixharness/runtime";
+import type { AgentMessage } from "@helixharness/core";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";

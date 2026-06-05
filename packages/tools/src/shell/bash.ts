@@ -1,7 +1,7 @@
 import { execSync, spawnSync } from "child_process";
 import * as path from "path";
 import * as os from "os";
-import type { ToolDef } from "@helix/core";
+import type { ToolDef } from "@helixharness/core";
 import { truncate } from "../utils/truncate";
 
 // ─── bashTool ─────────────────────────────────────────────────────────────────

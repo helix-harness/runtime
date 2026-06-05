@@ -2,8 +2,8 @@
  * Shared utilities for playground cases
  */
 
-import { getModel } from "@helix/models";
-import type { ModelAdapter } from "@helix/core";
+import { getModel } from "@helixharness/models";
+import type { ModelAdapter } from "@helixharness/core";
 
 export interface ModelOptions {
   provider?: "openai-compatible" | "anthropic-compatible";

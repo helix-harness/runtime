@@ -10,8 +10,8 @@
  * 关键 API：createSubagentTool({ name, description, agent, onEvent })
  */
 
-import { Agent, createSubagentTool } from "@helix/runtime";
-import type { ToolDef } from "@helix/core";
+import { Agent, createSubagentTool } from "@helixharness/runtime";
+import type { ToolDef } from "@helixharness/core";
 import { createModel, checkEnv } from "./shared";
 
 // ─── Shared tools for sub-agents ────────────────────────────────────────────

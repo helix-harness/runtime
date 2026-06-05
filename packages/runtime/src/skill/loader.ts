@@ -1,4 +1,4 @@
-import type { Skill } from "@helix/core";
+import type { Skill } from "@helixharness/core";
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 

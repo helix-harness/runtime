@@ -9,8 +9,8 @@
  *  5) agentLoop 低层使用（stateless，手动管理 context）
  */
 
-import { Agent, agentLoop, type AgentEvent } from "@helix/runtime";
-import type { AgentContext, AgentMessage } from "@helix/core";
+import { Agent, agentLoop, type AgentEvent } from "@helixharness/runtime";
+import type { AgentContext, AgentMessage } from "@helixharness/core";
 import { createModel, checkEnv } from "./shared";
 
 // ─── 1) Model 流式 ────────────────────────────────────────────────────────────
