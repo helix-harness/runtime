@@ -149,6 +149,3 @@ vite.config.ts.timestamp-*
 
 # Claude Code 配置
 CLAUDE.md
-
-# 依赖锁文件
-pnpm-lock.yaml
