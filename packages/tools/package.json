@@ -1,7 +1,15 @@
 {
   "name": "@helix/tools",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "description": "Built-in tools for the Helix agent runtime — file system, shell, and more",
+  "license": "MIT",
+  "author": "helix-harness",
+  "repository": "https://github.com/helix-harness/runtime",
+  "bugs": "https://github.com/helix-harness/runtime/issues",
+  "homepage": "https://github.com/helix-harness/runtime#readme",
+  "keywords": ["ai", "agent", "llm", "harness", "tools", "bash", "filesystem"],
   "type": "module",
+  "engines": { "node": ">=18" },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -11,10 +19,15 @@
     }
   },
   "files": ["dist"],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
     "dev": "tsup src/index.ts --watch --format esm --dts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "@helix/core": "workspace:*"
