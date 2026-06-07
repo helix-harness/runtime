@@ -18,8 +18,6 @@ export async function* runAgentLoop(
   const streamFn = config.streamFn ?? model.stream.bind(model);
   const thinkingLevel = config.thinkingLevel ?? "off";
 
-  const registry = new ToolRegistry();
-  if (context.tools?.length) registry.registerAll(context.tools);
   const executor = new ToolExecutor();
 
   const newMessages: AgentMessage[] = [];
@@ -29,6 +27,11 @@ export async function* runAgentLoop(
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       if (signal?.aborted) break;
+
+      // Rebuild registry each turn — picks up tool changes from
+      // registerTool / removeTool / setActiveTools between turns.
+      const registry = new ToolRegistry();
+      if (context.tools?.length) registry.registerAll(context.tools);
 
       yield { type: "turn_start" };
 

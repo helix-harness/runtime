@@ -73,6 +73,11 @@ export class Agent {
   private readonly loopConfig: Omit<AgentLoopConfig, "signal">;
   private readonly steeringMode: SteeringMode;
 
+  // ── Tools: two-tier management (registered vs active) ──────────────────────
+  private readonly registeredTools = new Map<string, ToolDef>();
+  /** System-managed tools (e.g. load_skill) — always active, never in registeredTools. */
+  private readonly systemTools: ToolDef[] = [];
+
   // ── Skills ────────────────────────────────────────────────────────────────────
   private readonly skillRegistry: SkillRegistry;
   private readonly baseSystemPrompt: string;
@@ -98,10 +103,18 @@ export class Agent {
     this.baseSystemPrompt = opts.systemPrompt ?? "";
     const skills = this.skillRegistry.list();
 
-    // ── Build tools (auto-inject load_skill when skills exist) ─────────────────
-    const tools = [...(opts.tools ?? [])];
+    // ── Build tools (two-tier: registered vs active) ─────────────────────────
+    for (const t of opts.tools ?? []) {
+      if (this.registeredTools.has(t.name)) {
+        console.warn(`[helix/runtime] Agent: duplicate tool "${t.name}" — later wins`);
+      }
+      this.registeredTools.set(t.name, t);
+    }
+    const tools = [...this.registeredTools.values()];
     if (skills.length > 0) {
-      tools.push(createLoadSkillTool(this.skillRegistry));
+      const loadSkill = createLoadSkillTool(this.skillRegistry);
+      this.systemTools.push(loadSkill);
+      tools.push(loadSkill);
     }
 
     // ── Build context ─────────────────────────────────────────────────────────
@@ -153,10 +166,96 @@ export class Agent {
 
     // Inject load_skill tool if not already present
     if (!this.context.tools.some(t => t.name === "load_skill")) {
-      this.context.tools = [...this.context.tools, createLoadSkillTool(this.skillRegistry)];
+      const loadSkill = createLoadSkillTool(this.skillRegistry);
+      this.systemTools.push(loadSkill);
+      this.context.tools = [...this.context.tools, loadSkill];
     }
 
     return diagnostics;
+  }
+
+  // ── Tool API ─────────────────────────────────────────────────────────────
+
+  /**
+   * Register a tool at runtime (incremental add).
+   *
+   * When `activate` is true (default) the tool is pushed to context.tools so
+   * the LLM sees it on the next turn. Set to false to register without
+   * activating — call setActiveTools() later to expose it.
+   *
+   * Overwrites if a tool with the same name already exists — updates both
+   * the registry entry and (when active) the active-list reference.
+   */
+  registerTool(tool: ToolDef, activate = true): void {
+    // Reject names that conflict with system-managed tools
+    if (this.systemTools.some(t => t.name === tool.name)) {
+      throw new Error(
+        `[helix/runtime] Agent: cannot register tool "${tool.name}" — ` +
+        `this name is reserved by the system.`
+      );
+    }
+    if (this.registeredTools.has(tool.name)) {
+      console.warn(`[helix/runtime] Agent: overwriting tool "${tool.name}"`);
+    }
+    this.registeredTools.set(tool.name, tool);
+
+    if (!activate) return;
+
+    const idx = this.context.tools.findIndex(t => t.name === tool.name);
+    if (idx >= 0) {
+      this.context.tools = [
+        ...this.context.tools.slice(0, idx),
+        tool,
+        ...this.context.tools.slice(idx + 1),
+      ];
+    } else {
+      this.context.tools = [...this.context.tools, tool];
+    }
+  }
+
+  /**
+   * Remove a tool from the registry and the active list.
+   * No-op (with a warning) if the tool is not found.
+   */
+  removeTool(name: string): void {
+    if (this.systemTools.some(t => t.name === name)) {
+      console.warn(`[helix/runtime] Agent: removeTool("${name}") — system tools cannot be removed`);
+      return;
+    }
+    if (!this.registeredTools.has(name)) {
+      console.warn(`[helix/runtime] Agent: removeTool("${name}") — tool not found`);
+      return;
+    }
+    this.registeredTools.delete(name);
+    this.context.tools = this.context.tools.filter(t => t.name !== name);
+  }
+
+  /**
+   * Set the active tool subset by name.
+   *
+   * Resolves names against the registered tool registry. Names that don't
+   * match any registered tool are silently skipped. System-managed tools
+   * (e.g. load_skill) are always preserved.
+   */
+  setActiveTools(names: string[]): void {
+    const resolved: ToolDef[] = [];
+    for (const n of names) {
+      const t = this.registeredTools.get(n);
+      if (t) {
+        resolved.push(t);
+      } else {
+        console.warn(`[helix/runtime] Agent: setActiveTools — unknown tool "${n}", skipped`);
+      }
+    }
+
+    this.context.tools = [...resolved, ...this.systemTools];
+  }
+
+  /**
+   * Return all registered tools (the full registry, including inactive ones).
+   */
+  getRegisteredTools(): ToolDef[] {
+    return [...this.registeredTools.values()];
   }
 
   /**
@@ -211,6 +310,12 @@ export class Agent {
     return this._runPrompt(input, opts);
   }
 
+  /**
+   * Tool/model changes made during a turn (e.g. from subscribers or
+   * steer/followUp handlers) take effect on the NEXT turn. This is
+   * because agentLoop reads context.tools at the start of each loop
+   * iteration to build a new ToolRegistry.
+   */
   private async _runPrompt(
     input: string | ContentPart[],
     opts?: { signal?: AbortSignal }

@@ -12,7 +12,7 @@
  */
 
 import { Agent } from "@helixharness/runtime";
-import type { ToolDef } from "@helixharness/core";
+import type { ModelAdapter, ToolDef } from "@helixharness/core";
 import { createModel, checkEnv } from "./shared";
 
 // ─── Tools ───────────────────────────────────────────────────────────────────
@@ -275,13 +275,253 @@ async function testShouldStopAfterTurn() {
   console.log("✅ shouldStopAfterTurn 通过\n");
 }
 
+// ─── 8) 动态 tool 注册 — API 断言 ─────────────────────────────────────────────
+
+function testDynamicToolApi() {
+  console.log("【8】动态 tool 注册 — API 断言\n");
+
+  // 8a: registerTool 基础
+  const mockModel: ModelAdapter = {
+    stream: async function* () {
+      yield { type: "done" as const };
+    },
+  };
+
+  const agent = new Agent({
+    model: mockModel,
+    systemPrompt: "You are helpful.",
+  });
+  console.assert(agent.getRegisteredTools().length === 0, "❌ 初始应无注册 tool");
+  console.assert(agent.getContext().tools.length === 0, "❌ 初始应无激活 tool");
+
+  agent.registerTool(calculatorTool);
+  console.assert(agent.getRegisteredTools().length === 1, "❌ registerTool 后注册表应有 1 个");
+  console.assert(agent.getRegisteredTools()[0]!.name === "calculator", "❌ 名称应为 calculator");
+  console.assert(agent.getContext().tools.length === 1, "❌ registerTool 应默认激活");
+  console.assert(agent.getContext().tools[0]!.name === "calculator", "❌ 激活列表应包含 calculator");
+
+  // 8b: registerTool 同名覆盖
+  const calcV2: ToolDef = {
+    name: "calculator",
+    description: "Calculator v2",
+    parameters: { type: "object", properties: {} },
+    execute: async () => ({ version: 2 }),
+  };
+  agent.registerTool(calcV2);
+  console.assert(agent.getRegisteredTools().length === 1, "❌ 覆盖后注册表仍为 1 个");
+  console.assert(agent.getRegisteredTools()[0] === calcV2, "❌ 注册表应为新 tool 引用");
+  console.assert(agent.getContext().tools.length === 1, "❌ 覆盖后激活列表仍为 1 个");
+  console.assert(agent.getContext().tools[0] === calcV2, "❌ 激活列表应为新 tool 引用");
+
+  // 8c: removeTool
+  const toolA: ToolDef = { name: "a", description: "", parameters: { type: "object", properties: {} }, execute: async () => ({}) };
+  const toolB: ToolDef = { name: "b", description: "", parameters: { type: "object", properties: {} }, execute: async () => ({}) };
+  agent.registerTool(toolA);
+  agent.registerTool(toolB);
+  console.assert(agent.getRegisteredTools().length === 3, "❌ 应有 3 个注册 tool");
+
+  agent.removeTool("a");
+  console.assert(agent.getRegisteredTools().length === 2, "❌ removeTool 后注册表应有 2 个");
+  console.assert(!agent.getRegisteredTools().some(t => t.name === "a"), "❌ tool a 应从注册表移除");
+  console.assert(agent.getContext().tools.length === 2, "❌ removeTool 后激活列表应为 2 个");
+  console.assert(!agent.getContext().tools.some(t => t.name === "a"), "❌ tool a 应从激活列表移除");
+
+  // 8d: removeTool 幂等 — 删不存在的 name 不抛异常
+  agent.removeTool("nonexistent");
+  console.assert(agent.getRegisteredTools().length === 2, "❌ 删除不存在的 tool 不应影响注册表");
+  console.assert(agent.getContext().tools.length === 2, "❌ 删除不存在的 tool 不应影响激活列表");
+
+  // 8e: registerTool 不激活
+  const toolInactive: ToolDef = { name: "inactive", description: "", parameters: { type: "object", properties: {} }, execute: async () => ({}) };
+  agent.registerTool(toolInactive, false);
+  console.assert(agent.getRegisteredTools().length === 3, "❌ registerTool(t, false) 应加入注册表");
+  console.assert(agent.getRegisteredTools().some(t => t.name === "inactive"), "❌ 注册表应包含 inactive");
+  console.assert(!agent.getContext().tools.some(t => t.name === "inactive"), "❌ registerTool(t, false) 不应激活");
+  // 后续手动激活
+  agent.setActiveTools(["b", "inactive"]);
+  console.assert(agent.getContext().tools.some(t => t.name === "inactive"), "❌ setActiveTools 后可激活");
+
+  console.log("✅ 动态 tool API 断言通过\n");
+}
+
+// ─── 9) setActiveTools + load_skill 保留 ─────────────────────────────────────
+
+function testSetActiveTools() {
+  console.log("【9】setActiveTools\n");
+
+  const mockModel: ModelAdapter = {
+    stream: async function* () {
+      yield { type: "done" as const };
+    },
+  };
+
+  const agent = new Agent({
+    model: mockModel,
+    systemPrompt: "You are helpful.",
+    skills: [{ name: "test-skill", description: "A test skill", content: "instructions" }],
+  });
+
+  // 注册多个 tool
+  const toolA: ToolDef = { name: "tool_a", description: "A", parameters: { type: "object", properties: {} }, execute: async () => ({}) };
+  const toolB: ToolDef = { name: "tool_b", description: "B", parameters: { type: "object", properties: {} }, execute: async () => ({}) };
+  const toolC: ToolDef = { name: "tool_c", description: "C", parameters: { type: "object", properties: {} }, execute: async () => ({}) };
+  agent.registerTool(toolA);
+  agent.registerTool(toolB);
+  agent.registerTool(toolC);
+
+  // context.tools 当前包含 tool_a, tool_b, tool_c, load_skill
+  console.assert(agent.getContext().tools.length === 4, "❌ 应有 4 个激活 tool (3 用户 + load_skill)");
+
+  // 9a: setActiveTools 只激活子集
+  agent.setActiveTools(["tool_a", "tool_c"]);
+  console.assert(agent.getContext().tools.length === 3, "❌ 应有 3 个激活 tool (2 用户 + load_skill)");
+  console.assert(agent.getContext().tools.some(t => t.name === "tool_a"), "❌ tool_a 应激活");
+  console.assert(agent.getContext().tools.some(t => t.name === "tool_c"), "❌ tool_c 应激活");
+  console.assert(!agent.getContext().tools.some(t => t.name === "tool_b"), "❌ tool_b 不应激活");
+
+  // 9b: load_skill 自动保留
+  console.assert(agent.getContext().tools.some(t => t.name === "load_skill"), "❌ load_skill 应被保留");
+
+  // 9c: 注册表不变
+  console.assert(agent.getRegisteredTools().length === 3, "❌ 注册表不应受 setActiveTools 影响");
+
+  // 9d: 不存在的名字静默跳过
+  agent.setActiveTools(["tool_a", "nonexistent"]);
+  console.assert(agent.getContext().tools.length >= 2, "❌ 静默跳过不存在的名字，tool_a + load_skill 应存在");
+
+  console.log("✅ setActiveTools 通过\n");
+}
+
+// ─── 10) registerTool 后 LLM 验证 ────────────────────────────────────────────
+
+async function testRegisterToolLlm() {
+  console.log("【10】registerTool — LLM 验证\n");
+
+  const agent = new Agent({
+    model: createModel(),
+    systemPrompt: "Always use the calculator tool for math.",
+  });
+
+  // 运行时注册 calculator
+  const myCalc: ToolDef = {
+    name: "calc_runtime",
+    description: "Evaluate math expressions",
+    parameters: {
+      type: "object",
+      properties: { expr: { type: "string" } },
+      required: ["expr"],
+    },
+    execute: async (args: any) => {
+      const result = Function(`"use strict"; return (${args.expr})`)();
+      return { result };
+    },
+  };
+  agent.registerTool(myCalc);
+
+  let toolCalled = false;
+  agent.subscribe((e) => {
+    if (e.type === "tool_execution_start" && e.name === "calc_runtime") {
+      toolCalled = true;
+    }
+    if (e.type === "message_update") process.stdout.write(e.delta);
+  });
+
+  await agent.prompt("用 calc_runtime 计算 100 + 200");
+  console.log();
+
+  console.assert(toolCalled, "❌ LLM 应调用运行时注册的 calc_runtime");
+  console.log("✅ registerTool LLM 验证通过\n");
+}
+
+// ─── 11) 项目切换完整流程 ────────────────────────────────────────────────────
+
+async function testProjectSwitch() {
+  console.log("【11】项目切换流程\n");
+
+  // 通用 tools
+  const generalTool: ToolDef = {
+    name: "general_read",
+    description: "Read generic files",
+    parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+    execute: async (args: any) => ({ path: args.path, read: true }),
+  };
+
+  const agent = new Agent({
+    model: createModel(),
+    systemPrompt: "You are a diagnostic assistant.",
+    tools: [generalTool],
+  });
+
+  // 识别到 Java 项目 → 注册 Java tools
+  const javaTool: ToolDef = {
+    name: "java_analyzer",
+    description: "Analyze Java bytecode and dependencies",
+    parameters: { type: "object", properties: { target: { type: "string" } }, required: ["target"] },
+    execute: async (args: any) => ({ analyzed: args.target, lang: "java" }),
+  };
+  const mavenTool: ToolDef = {
+    name: "maven_runner",
+    description: "Run Maven goals",
+    parameters: { type: "object", properties: { goal: { type: "string" } }, required: ["goal"] },
+    execute: async (args: any) => ({ goal: args.goal, output: "BUILD SUCCESS" }),
+  };
+  agent.registerTool(javaTool);
+  agent.registerTool(mavenTool);
+
+  console.assert(agent.getRegisteredTools().length === 3, "❌ 注册表应有 3 个 (通用 + Java×2)");
+  console.assert(agent.getContext().tools.some(t => t.name === "java_analyzer"), "❌ java_analyzer 应激活");
+
+  // 切换到 Python 项目 → 移除 Java tools，注册 Python tools
+  agent.removeTool("java_analyzer");
+  agent.removeTool("maven_runner");
+
+  const pythonTool: ToolDef = {
+    name: "python_analyzer",
+    description: "Analyze Python packages and imports",
+    parameters: { type: "object", properties: { target: { type: "string" } }, required: ["target"] },
+    execute: async (args: any) => ({ analyzed: args.target, lang: "python" }),
+  };
+  agent.registerTool(pythonTool);
+
+  console.assert(agent.getRegisteredTools().length === 2, "❌ 注册表应有 2 个 (通用 + Python)");
+  console.assert(!agent.getRegisteredTools().some(t => t.name === "java_analyzer"), "❌ java_analyzer 应已移除");
+  console.assert(agent.getRegisteredTools().some(t => t.name === "python_analyzer"), "❌ python_analyzer 应已注册");
+  console.assert(agent.getContext().tools.some(t => t.name === "general_read"), "❌ 通用 tool 应始终激活");
+  console.assert(!agent.getContext().tools.some(t => t.name === "java_analyzer"), "❌ java_analyzer 应已从激活列表移除");
+
+  // LLM 验证：使用 setActiveTools 只暴露 Python tool
+  agent.setActiveTools(["python_analyzer"]);
+  let pyCalled = false;
+  agent.subscribe((e) => {
+    if (e.type === "tool_execution_start") {
+      console.log(`  → ${e.name}(${JSON.stringify(e.args)})`);
+      if (e.name === "python_analyzer") pyCalled = true;
+    }
+    if (e.type === "tool_execution_end") {
+      console.log(`  ← ${e.name}: ${JSON.stringify(e.result)}`);
+    }
+    if (e.type === "message_update") process.stdout.write(e.delta);
+  });
+
+  await agent.prompt("用 python_analyzer 分析目标 myproject");
+  console.log();
+
+  console.assert(pyCalled, `❌ LLM 应调用 python_analyzer`);
+
+  console.log("✅ 项目切换流程通过\n");
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 export async function tools() {
   console.log("\n========== 02 Tools: Tool 系统 ==========\n");
 
+  // 纯 API 测试（无需 LLM）
+  testDynamicToolApi();
+  testSetActiveTools();
+
   if (!checkEnv()) {
-    console.log("跳过\n");
+    console.log("LLM 测试跳过\n");
     return;
   }
 
@@ -293,6 +533,11 @@ export async function tools() {
     await testBeforeToolCall();
     await testAfterToolCall();
     await testShouldStopAfterTurn();
+
+    // 动态 tool 注册 + LLM 验证
+    await testRegisterToolLlm();
+    await testProjectSwitch();
+
     console.log("========== 02 Tools 全部通过 ✅ ==========\n");
   } catch (err) {
     console.error("❌ 失败:", err);
